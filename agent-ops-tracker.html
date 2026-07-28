@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RR Agent Ops Project Tracker</title>
+<style>
+:root{
+  --bg:#f8f7f5;--surface:#fff;--border:#e8e5e0;--border-light:#f0ede8;
+  --text-primary:#1c1c1c;--text-secondary:#5c5c5c;--text-muted:#9a9896;
+  --accent:#1d6ef5;--accent-hover:#1558d6;
+  --s-ongoing-bg:#dbeafe;--s-ongoing-fg:#1e4fad;
+  --s-paused-bg:#fef3c7;--s-paused-fg:#854d0e;
+  --s-tostart-bg:#f1f0ee;--s-tostart-fg:#4b4b4b;
+  --s-deprio-bg:#ede9fe;--s-deprio-fg:#5b21b6;
+  --s-closed-bg:#d8f5e6;--s-closed-fg:#14643b;
+  --p1-bg:#fee2e2;--p1-fg:#991b1b;
+  --p2-bg:#fef3c7;--p2-fg:#854d0e;
+  --p3-bg:#f1f0ee;--p3-fg:#4b4b4b;
+  --radius:8px;--radius-sm:5px;
+  --shadow:0 1px 3px rgba(0,0,0,.07);
+  --shadow-md:0 4px 16px rgba(0,0,0,.09),0 1px 4px rgba(0,0,0,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;font-size:13px;line-height:1.5;background:var(--bg);color:var(--text-primary);-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.setup-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:900;}
+.setup-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:40px 44px;width:100%;max-width:520px;box-shadow:var(--shadow-md);}
+.setup-icon{font-size:28px;margin-bottom:14px;}
+.setup-card h2{font-size:17px;font-weight:650;margin-bottom:6px;}
+.setup-desc{font-size:12.5px;color:var(--text-secondary);line-height:1.65;margin-bottom:22px;}
+.setup-step{display:none;}.setup-step.active{display:block;}
+.setup-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;}
+.setup-input{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12.5px;font-family:inherit;color:var(--text-primary);background:var(--surface);outline:none;margin-bottom:4px;transition:border-color .15s;}
+.setup-input:focus{border-color:var(--accent);}
+.setup-hint{font-size:11px;color:var(--text-muted);margin-bottom:14px;}
+.setup-actions{display:flex;gap:8px;margin-top:22px;}
+#auth-msg{font-size:12px;color:var(--text-muted);margin-top:8px;min-height:20px;}
+.info-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius-sm);padding:10px 13px;font-size:11.5px;color:#1e4fad;line-height:1.6;margin-bottom:14px;}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;border:1px solid transparent;transition:all .12s;white-space:nowrap;line-height:1;}
+.btn-primary{background:var(--accent);color:white;border-color:var(--accent);}
+.btn-primary:hover{background:var(--accent-hover);}
+.btn-secondary{background:var(--surface);color:var(--text-secondary);border-color:var(--border);}
+.btn-secondary:hover{background:var(--bg);color:var(--text-primary);}
+.btn-ghost{background:transparent;color:var(--text-secondary);border-color:transparent;}
+.btn-ghost:hover{background:var(--bg);}
+.btn-danger{background:var(--surface);color:#dc2626;border-color:#fca5a5;}
+.btn-danger:hover{background:#fef2f2;}
+.btn-sm{padding:5px 11px;font-size:11.5px;}.btn-xs{padding:3px 8px;font-size:11px;}
+.header{position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;justify-content:space-between;}
+.header-left{display:flex;align-items:center;gap:11px;}
+.header-logo{font-size:22px;line-height:1;}
+.header-title{font-size:13.5px;font-weight:650;}.header-subtitle{font-size:11px;color:var(--text-muted);margin-top:1px;}
+.header-right{display:flex;align-items:center;gap:8px;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#c8c4be;flex-shrink:0;transition:background .3s;}
+.sync-dot.ok{background:#5dbd8e;}.sync-dot.stale{background:#e8b84b;}.sync-dot.err{background:#e8624b;}
+.sync-dot.syncing{background:#7eb3f5;animation:blink 1s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.sync-ts{font-size:11px;color:var(--text-muted);}
+.sync-row{display:flex;align-items:center;gap:6px;}
+.tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;}
+.tab{padding:11px 14px;font-size:12.5px;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;cursor:pointer;transition:all .13s;user-select:none;}
+.tab:hover{color:var(--text-primary);}.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.content{padding:18px 24px;}
+.filter-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.filter-label{font-size:10.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-right:1px;white-space:nowrap;}
+.filter-group{display:flex;gap:3px;flex-wrap:wrap;}
+.pill{padding:3px 9px;border-radius:99px;border:1px solid var(--border);font-size:11.5px;cursor:pointer;background:var(--surface);color:var(--text-secondary);transition:all .11s;user-select:none;white-space:nowrap;}
+.pill:hover{border-color:#ccc9c2;color:var(--text-primary);}.pill.on{background:var(--accent);border-color:var(--accent);color:white;}
+.filter-sep{width:1px;height:18px;background:var(--border);margin:0 2px;flex-shrink:0;align-self:center;}
+.filter-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.search-wrap{position:relative;}
+.search-wrap::before{content:'⌕';position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none;line-height:1;}
+.search-input{padding:5px 10px 5px 26px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--surface);outline:none;width:190px;transition:border-color .13s;}
+.search-input:focus{border-color:var(--accent);}
+.row-count{font-size:11px;color:var(--text-muted);white-space:nowrap;}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;max-height:calc(100vh - 220px);}
+table{width:100%;border-collapse:collapse;}
+thead{position:sticky;top:0;z-index:10;}
+thead th{padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);background:#faf9f7;border-bottom:1px solid var(--border);white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border-light);}tbody tr:last-child{border-bottom:none;}tbody tr:hover{background:#faf9f7;}
+td{padding:9px 12px;vertical-align:top;}
+.c-proj{width:155px;min-width:135px;}.c-pri{width:38px;text-align:center;}
+.c-pic{width:80px;}.c-sin{width:80px;}.c-status{width:88px;}
+.c-ela{min-width:439px;max-width:619px;width:499px;}
+.c-task{min-width:67px;max-width:101px;}
+.c-ai{width:72px;}.c-act{width:34px;text-align:center;}
+.proj-name{font-weight:500;font-size:12.5px;word-break:break-word;margin-bottom:3px;}
+.proj-labels{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;}
+.proj-label{display:inline-block;font-size:10px;font-weight:500;padding:1px 6px;border-radius:3px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);white-space:nowrap;}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:99px;font-size:10.5px;font-weight:500;white-space:nowrap;}
+.s-ongoing{background:var(--s-ongoing-bg);color:var(--s-ongoing-fg);}
+.s-paused{background:var(--s-paused-bg);color:var(--s-paused-fg);}
+.s-tostart{background:var(--s-tostart-bg);color:var(--s-tostart-fg);}
+.s-deprio{background:var(--s-deprio-bg);color:var(--s-deprio-fg);}
+.s-closed{background:var(--s-closed-bg);color:var(--s-closed-fg);}
+.p1{background:var(--p1-bg);color:var(--p1-fg);}
+.p2{background:var(--p2-bg);color:var(--p2-fg);}
+.p3{background:var(--p3-bg);color:var(--p3-fg);}
+.elab-sec{margin-bottom:7px;}.elab-sec:last-child{margin-bottom:0;}
+.elab-lbl{display:inline-block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:2px;}
+.elab-ul{padding-left:13px;margin:0;}
+.elab-ul li{font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:1px;}
+.task-chk-row{display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;cursor:pointer;}
+.task-chk-row input[type=checkbox]{margin-top:2px;flex-shrink:0;cursor:pointer;accent-color:var(--accent);}
+.task-chk-text{font-size:12px;color:var(--text-primary);line-height:1.5;}
+.task-chk-row.done .task-chk-text{text-decoration:line-through;color:var(--text-muted);}
+.edit-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px 4px;border-radius:3px;transition:all .12s;}
+.edit-btn:hover{background:var(--bg);color:var(--accent);}
+.log-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-top:16px;}
+.log-panel-hdr{font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.log-entries{font-family:'SF Mono','Monaco',monospace;font-size:11px;color:var(--text-secondary);line-height:1.9;max-height:120px;overflow-y:auto;}
+.log-ok{color:#3aa876;}.log-err{color:#e8624b;}.log-info{color:var(--text-muted);}
+.debug-panel{background:#1c1c1c;border-radius:var(--radius);padding:10px 14px;margin-top:12px;display:none;}
+.debug-panel-hdr{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9a9896;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}
+.debug-entries{font-family:'SF Mono','Monaco',monospace;font-size:10.5px;color:#e0ddd8;line-height:1.8;max-height:160px;overflow-y:auto;}
+.debug-err{color:#f87171;}.debug-info{color:#86efac;}
+.empty{padding:48px 24px;text-align:center;color:var(--text-muted);}
+.empty h3{font-size:14px;font-weight:500;margin-bottom:6px;color:var(--text-secondary);}
+.empty p{font-size:12px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;z-index:800;}
+.modal{background:var(--surface);border-radius:12px;padding:28px 32px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-md);}
+.modal h3{font-size:15px;font-weight:650;margin-bottom:4px;}
+.modal-sub{font-size:12px;color:var(--text-muted);margin-bottom:20px;}
+.modal-field{margin-bottom:14px;}
+.modal-row{display:flex;gap:12px;margin-bottom:14px;}
+.modal-row .modal-field{flex:1;margin-bottom:0;}
+.modal-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;}
+.modal-input,.modal-select,.modal-textarea{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12.5px;font-family:inherit;color:var(--text-primary);background:var(--surface);outline:none;transition:border-color .15s;}
+.modal-input:focus,.modal-select:focus,.modal-textarea:focus{border-color:var(--accent);}
+.modal-textarea{min-height:68px;resize:vertical;}
+.modal-textarea.notes{min-height:80px;}
+.modal-actions{display:flex;gap:8px;margin-top:22px;justify-content:flex-end;}
+.modal-divider{height:1px;background:var(--border-light);margin:18px 0;}
+.modal-section-hdr{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:12px;}
+.notes-hint{font-size:11px;color:var(--text-muted);margin-top:3px;}
+.generic-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;max-height:calc(100vh - 160px);}
+.generic-wrap table{width:100%;border-collapse:collapse;}
+.generic-wrap thead th{padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);background:#faf9f7;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:5;}
+.generic-wrap tbody tr{border-bottom:1px solid var(--border-light);}
+.generic-wrap tbody tr:last-child{border-bottom:none;}
+.generic-wrap tbody tr:hover{background:#faf9f7;}
+.generic-wrap td{padding:6px 10px;vertical-align:middle;font-size:12.5px;}
+.auto-section-row td{background:#f4f3f0 !important;font-weight:600;font-size:12px;color:var(--text-secondary);border-top:1px solid var(--border);padding:8px 12px;}
+.local-row td{background:#fffbeb;}
+.add-row-bar{padding:8px 12px;border-top:1px solid var(--border);background:#faf9f7;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.cell-input{width:100%;background:transparent;border:1px solid transparent;border-radius:3px;padding:3px 6px;font-size:12.5px;font-family:inherit;color:var(--text-primary);outline:none;transition:border-color .12s,background .12s;min-width:60px;}
+.cell-input:hover{border-color:var(--border);}
+.cell-input:focus{border-color:var(--accent);background:rgba(29,110,245,.04);}
+.cell-input.wf{min-width:160px;font-weight:500;}
+.editable-cell{outline:none;min-height:20px;white-space:pre-wrap;word-break:break-word;border-radius:3px;transition:background .12s,box-shadow .12s;cursor:text;}
+.editable-cell:hover{background:rgba(29,110,245,.04);}
+.editable-cell:focus{background:rgba(29,110,245,.07);box-shadow:inset 0 0 0 1px rgba(29,110,245,.3);}
+.stale-modal{background:var(--surface);border-radius:12px;padding:28px 32px;width:100%;max-width:480px;box-shadow:var(--shadow-md);}
+.stale-proj-list{margin:14px 0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;}
+.stale-proj-item{padding:8px 12px;font-size:12.5px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:8px;}
+.stale-proj-item:last-child{border-bottom:none;}
+.stale-proj-item::before{content:'⚠';font-size:12px;color:#e8b84b;flex-shrink:0;}
+.stale-actions{display:flex;flex-direction:column;gap:8px;margin-top:18px;}
+.stale-option{display:flex;align-items:flex-start;gap:10px;padding:10px 13px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .12s;background:var(--surface);}
+.stale-option:hover{background:var(--bg);border-color:#ccc9c2;}
+.stale-option-num{font-size:11px;font-weight:700;color:white;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.stale-option-body strong{display:block;font-size:12.5px;font-weight:600;margin-bottom:2px;}
+.stale-option-body span{font-size:11.5px;color:var(--text-muted);}
+.stale-option.opt-danger .stale-option-num{background:#dc2626;}
+.stale-option.opt-danger:hover{border-color:#fca5a5;background:#fef2f2;}
+.stale-option.opt-info .stale-option-num{background:var(--accent);}
+</style>
+</head>
+<body>
+
+<div class="setup-overlay" id="setup-overlay" style="display:none;">
+  <div class="setup-card">
+    <div class="setup-icon">📋</div>
+    <h2>RR Agent Ops Project Tracker</h2>
+    <p class="setup-desc">Connect your Google account and Anthropic API key to get started.</p>
+    <div class="setup-step active" id="step-keys">
+      <label class="setup-label">Google Client ID</label>
+      <input class="setup-input" id="inp-cid" placeholder="xxx.apps.googleusercontent.com" autocomplete="off">
+      <div class="setup-hint">From Google Cloud Console → Credentials → Desktop app OAuth client</div>
+      <label class="setup-label">Google Client Secret</label>
+      <input class="setup-input" id="inp-csec" type="password" placeholder="GOCSPX-…" autocomplete="off">
+      <div class="setup-hint">Required for Desktop app token exchange</div>
+      <label class="setup-label">Anthropic API Key</label>
+      <input class="setup-input" id="inp-akey" type="password" placeholder="sk-ant-…" autocomplete="off">
+      <div class="setup-hint">From console.anthropic.com → API Keys</div>
+      <div class="setup-actions"><button class="btn btn-primary" onclick="saveKeys()">Continue →</button></div>
+    </div>
+    <div class="setup-step" id="step-auth">
+      <div class="info-box">Open this page via <strong>http://localhost:8080/agent-ops-tracker.html</strong></div>
+      <div class="info-box">Log on terminal via <strong>cd ~/Desktop &amp;&amp; python3 -m http.server 8080</strong></div>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Grant access to Google Sheets, Gmail, and Calendar.</p>
+      <button class="btn btn-primary" onclick="startAuth()">Connect Google Account</button>
+      <div id="auth-msg"></div>
+      <div class="setup-actions" style="margin-top:14px;"><button class="btn btn-secondary" onclick="showStep('step-keys')">← Back</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="header">
+    <div class="header-left">
+      <span class="header-logo">📋</span>
+      <div>
+        <div class="header-title">RR Agent Ops Project Tracker</div>
+        <div class="header-subtitle">Returns &amp; Refund · Regional Strategy &amp; Operations</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="sync-row"><div class="sync-dot" id="sync-dot"></div><span class="sync-ts" id="sync-ts">Never synced</span></div>
+      <button class="btn btn-secondary btn-sm" onclick="doSync(true)">Sync now</button>
+      <button class="btn btn-ghost btn-sm" onclick="saveToDrive(false)" title="Save to Google Drive now">☁ Save</button>
+      <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive">☁ —</span>
+      <button class="btn btn-ghost btn-sm" onclick="restoreFromDrive()" title="Restore from Google Drive">↩ Restore</button>
+      <button class="btn btn-ghost btn-sm" onclick="openSetup()" title="Settings">⚙</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-rr" onclick="switchTab('rr')">RR Projects</div>
+    <div class="tab" id="tab-auto" onclick="switchTab('auto')">Automation Pipeline</div>
+    <div class="tab" id="tab-scope" onclick="switchTab('scope')">Team Scope</div>
+    <div class="tab" id="tab-pic" onclick="switchTab('pic')">PIC View</div>
+  </div>
+  <div class="content">
+    <div id="view-rr">
+      <div class="filter-bar" id="rr-filter-bar-top">
+        <span class="filter-label">Type</span><div class="filter-group" id="f-type"></div>
+        <div class="filter-sep"></div>
+        <span class="filter-label">Category</span><div class="filter-group" id="f-cat"></div>
+      </div>
+      <div class="filter-bar" id="rr-filter-bar">
+        <span class="filter-label">Status</span><div class="filter-group" id="f-status"></div>
+        <div class="filter-sep"></div>
+        <span class="filter-label">Priority</span><div class="filter-group" id="f-pri"></div>
+        <div class="filter-sep"></div>
+        <span class="filter-label">PIC</span><div class="filter-group" id="f-pic"></div>
+        <div class="filter-sep"></div>
+        <span class="filter-label">Task</span>
+        <div class="filter-group">
+          <span class="pill" id="pill-task" onclick="toggleBoolFilter('task',this)">Yes</span>
+        </div>
+        <div class="filter-sep"></div>
+        <span class="filter-label">AI Pot.</span>
+        <div class="filter-group">
+          <span class="pill" id="pill-ai" onclick="toggleBoolFilter('ai',this)">Yes</span>
+        </div>
+        <div class="filter-right">
+          <div class="search-wrap"><input class="search-input" id="rr-search" placeholder="Search…" oninput="renderRR()"></div>
+          <span class="row-count" id="rr-count"></span>
+        </div>
+      </div>
+      <div class="table-wrap" id="rr-table">
+        <div class="empty"><h3>Not yet synced</h3><p>Click "Sync now" to load projects.</p></div>
+      </div>
+      <div class="log-panel" id="log-panel" style="display:none;">
+        <div class="log-panel-hdr"><span>Sync Log</span><button class="btn btn-ghost btn-xs" onclick="document.getElementById('log-panel').style.display='none'">✕</button></div>
+        <div class="log-entries" id="log-entries"></div>
+      </div>
+      <div class="debug-panel" id="debug-panel">
+        <div class="debug-panel-hdr"><span>Debug</span><button class="btn btn-ghost btn-xs" style="color:#9a9896" onclick="document.getElementById('debug-panel').style.display='none'">✕</button></div>
+        <div class="debug-entries" id="debug-entries"></div>
+      </div>
+    </div>
+    <div id="view-auto" style="display:none;">
+      <div class="filter-bar">
+        <span style="font-size:11px;color:var(--text-muted)">Click any cell to edit · Changes save locally · Sync does not affect this tab</span>
+        <div class="filter-right"><span class="row-count" id="auto-count"></span></div>
+      </div>
+      <div id="auto-table"></div>
+    </div>
+    <div id="view-scope" style="display:none;">
+      <div class="filter-bar">
+        <span style="font-size:11px;color:var(--text-muted)">Click any cell to edit · Changes save locally · Sync does not affect this tab</span>
+      </div>
+      <div id="scope-table"></div>
+    </div>
+    <div id="view-pic" style="display:none;">
+      <div class="filter-bar">
+        <span style="font-size:11px;color:var(--text-muted)">Project allocation by PIC · Updates on every render</span>
+      </div>
+      <div id="pic-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RR edit modal -->
+<div class="modal-overlay" id="edit-modal" style="display:none;" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modal-title">Edit Row</h3>
+    <div class="modal-sub" id="modal-sub"></div>
+    <div class="modal-section-hdr">Project Info</div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label class="modal-label">Type</label>
+        <select class="modal-select" id="modal-type">
+          <option value="">—</option>
+          <option value="Initiative">Initiative</option>
+          <option value="Reporting">Reporting</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Category</label>
+        <select class="modal-select" id="modal-cat">
+          <option value="">—</option>
+          <option value="HC Planning">HC Planning</option>
+          <option value="Productivity">Productivity</option>
+          <option value="Performance">Performance</option>
+          <option value="SOP">SOP</option>
+          <option value="DMS Features">DMS Features</option>
+          <option value="Automation">Automation</option>
+          <option value="Warehouse">Warehouse</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label class="modal-label">Priority</label>
+        <select class="modal-select" id="modal-pri">
+          <option value="">—</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option><option value="BAU">BAU</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label class="modal-label">PIC</label>
+        <input class="modal-input" id="modal-pic" placeholder="Person in charge">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Stand-in</label>
+        <input class="modal-input" id="modal-sin" placeholder="Stand-in">
+      </div>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Status</label>
+      <select class="modal-select" id="modal-status">
+        <option value="">—</option><option value="Ongoing">Ongoing</option><option value="Paused">Paused</option>
+        <option value="To Start">To Start</option><option value="Deprioritised">Deprioritised</option><option value="Closed">Closed</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Noelle's Task</label>
+      <textarea class="modal-textarea" id="modal-task" placeholder="Enter tasks, one per line"></textarea>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="modal-section-hdr">Additional Context for AI Synthesis</div>
+    <div class="modal-field">
+      <textarea class="modal-textarea notes" id="modal-notes" placeholder="Add any extra context for Claude to use when generating Status Elaboration."></textarea>
+      <div class="notes-hint">Supplements (does not replace) emails, calendar data, and Team Update column.</div>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="modal-section-hdr">Status Elaboration Override <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--text-muted)">(leave blank to let AI generate)</span></div>
+    <div class="modal-field"><label class="modal-label">Current State</label><textarea class="modal-textarea" id="modal-elab-status"></textarea></div>
+    <div class="modal-field"><label class="modal-label">Next Steps</label><textarea class="modal-textarea" id="modal-elab-nextsteps"></textarea></div>
+    <div class="modal-field"><label class="modal-label">Risks</label><textarea class="modal-textarea" id="modal-elab-risks"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="deleteRowFromModal()">Delete</button>
+      <button class="btn btn-secondary" id="modal-resynth-btn" onclick="resynthModal()">↻ Re-synthesise</button>
+      <button class="btn btn-primary" onclick="saveModal()">Save</button>
+    </div>
+    <div id="modal-resynth-msg" style="font-size:11.5px;color:var(--text-muted);margin-top:8px;min-height:18px;"></div>
+  </div>
+</div>
+
+<!-- Stale projects modal -->
+<div class="modal-overlay" id="stale-modal" style="display:none;">
+  <div class="stale-modal">
+    <h3>Projects no longer in sheet</h3>
+    <p style="font-size:12.5px;color:var(--text-secondary);margin-top:6px;">The following projects were not found in the RR Projects sheet during this sync:</p>
+    <div class="stale-proj-list" id="stale-proj-list"></div>
+    <div class="stale-actions">
+      <div class="stale-option opt-danger" onclick="staleRemoveAll()">
+        <div class="stale-option-num">1</div>
+        <div class="stale-option-body">
+          <strong>Remove all at once</strong>
+          <span>Delete all listed projects from the tracker immediately.</span>
+        </div>
+      </div>
+      <div class="stale-option opt-info" onclick="staleHandleIndividually()">
+        <div class="stale-option-num">2</div>
+        <div class="stale-option-body">
+          <strong>Handle individually</strong>
+          <span>Close this notice, then use the Delete button in each project's edit pop-up.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.onerror=function(msg,src,line){dbg('JS Error: '+msg+' (line '+line+')','err');return false;};
+window.onunhandledrejection=function(e){dbg('Unhandled: '+(e.reason?.message||e.reason),'err');};
+function dbg(msg,cls){
+  const p=document.getElementById('debug-panel'),e=document.getElementById('debug-entries');
+  if(!p||!e)return;p.style.display='';
+  e.innerHTML+='<div class="debug-'+(cls||'info')+'">['+new Date().toLocaleTimeString('en-SG')+'] '+String(msg).slice(0,400)+'</div>';
+  e.scrollTop=e.scrollHeight;
+}
+
+(function(){
+  const p=new URLSearchParams(window.location.search),code=p.get('code');
+  if(code&&window.opener){
+    try{window.opener.postMessage({type:'gauth-code',code},window.location.origin);}catch(e){}
+    history.replaceState(null,'',window.location.pathname);window.close();
+  }
+})();
+
+const SHEET_ID='14egvvWfjGO7fzea_so_MYfUTp7Mrs8Vf3R40xdcf644';
+const C={TYPE:0,CAT:1,PROJ:2,PRI:3,PIC:4,SIN:5,STATUS:6,ELAB:7,TEAM_UPDATE:8,AI:10,TASK:11,DONE:12};
+const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILE_NAME='aopt-backup.json';
+const CLAUDE_MODEL='claude-haiku-4-5-20251001';
+const LS_KEY='aopt';
+const AUTO_COLS=['Workflow','Target Outcome','Architecture','PIC','Timeline'];
+const ELAB_SYSTEM=`You are a concise project status assistant for Shopee's Returns & Refund team.
+Output EXACTLY this structure — no exceptions:
+**Status**
+- [concise current state]
+**Next Steps**
+- [specific action item]
+**Risks**
+- [risk or blocker]
+RULES: Use ONLY these three headers with ** on both sides. 1-3 bullet points per section starting with "- ". Max 20 words per bullet. No intro or conclusion. If nothing relevant, write "- None".`;
+
+const S={
+  clientId:null,clientSecret:null,claudeKey:null,
+  token:null,tokenExp:null,refreshToken:null,
+  rr:[],auto:[],scope:[],autoLocal:[],
+  edits:{},elab:{},autoEdits:{},autoDeleted:[],scopeEdits:{},
+  lastSync:null,log:[],syncing:false,editRow:null,tab:'rr',
+  filterTask:false,filterAi:false,
+  activeF:{status:new Set(),pri:new Set(),pic:new Set(),type:new Set(),cat:new Set()},
+  _pkceVerifier:null,
+};
+
+// Stale modal promise resolver — set by showStaleModal, called by option buttons
+var _staleResolve=null;
+function staleRemoveAll(){if(_staleResolve)_staleResolve('remove-all');}
+function staleHandleIndividually(){if(_staleResolve)_staleResolve('handle-individually');}
+
+function lsSave(){
+  try{
+    localStorage.setItem(LS_KEY,JSON.stringify({
+      clientId:S.clientId,clientSecret:S.clientSecret,claudeKey:S.claudeKey,
+      token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken,
+      rr:S.rr,auto:S.auto,scope:S.scope,autoLocal:S.autoLocal,
+      edits:S.edits,elab:S.elab,autoEdits:S.autoEdits,autoDeleted:S.autoDeleted,
+      scopeEdits:S.scopeEdits,lastSync:S.lastSync,driveFileId:S.driveFileId||null,
+    }));
+  }catch(e){dbg('lsSave: '+e.message,'err');}
+}
+function lsLoad(){
+  try{
+    const d=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    if(d.clientId)S.clientId=d.clientId;
+    if(d.clientSecret)S.clientSecret=d.clientSecret;
+    if(d.claudeKey)S.claudeKey=d.claudeKey;
+    if(d.token)S.token=d.token;
+    if(d.tokenExp)S.tokenExp=d.tokenExp;
+    if(d.refreshToken)S.refreshToken=d.refreshToken;
+    if(d.rr&&d.rr.length)S.rr=d.rr;
+    if(d.auto&&d.auto.length)S.auto=d.auto;
+    if(d.scope&&d.scope.length)S.scope=d.scope;
+    if(d.autoLocal)S.autoLocal=d.autoLocal;
+    if(d.edits)S.edits=d.edits;
+    if(d.elab){
+      S.elab=d.elab;
+      Object.keys(S.elab).forEach(k=>{if(typeof S.elab[k]!=='string')delete S.elab[k];});
+    }
+    if(d.autoEdits)S.autoEdits=d.autoEdits;
+    if(d.autoDeleted)S.autoDeleted=d.autoDeleted;
+    if(d.scopeEdits)S.scopeEdits=d.scopeEdits||{};
+    if(d.lastSync)S.lastSync=d.lastSync;
+    if(d.driveFileId)S.driveFileId=d.driveFileId;
+  }catch(e){dbg('lsLoad: '+e.message,'err');}
+}
+
+function genVerifier(){const a=new Uint8Array(48);crypto.getRandomValues(a);return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');}
+async function genChallenge(v){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');}
+function redirectUri(){return window.location.href.split('?')[0].split('#')[0];}
+async function openAuthPopup(){
+  return new Promise(async(resolve,reject)=>{
+    const v=genVerifier();S._pkceVerifier=v;
+    const ch=await genChallenge(v);
+    const params=new URLSearchParams({
+      client_id:S.clientId,redirect_uri:redirectUri(),response_type:'code',scope:SCOPES,
+      code_challenge:ch,code_challenge_method:'S256',access_type:'offline',
+      prompt:S.refreshToken?'select_account':'consent',
+    });
+    const popup=window.open('https://accounts.google.com/o/oauth2/v2/auth?'+params,'gauth','width=520,height=640,top=100,left=100');
+    if(!popup){reject(new Error('Popup blocked'));return;}
+    const handler=async e=>{
+      if(e.origin!==window.location.origin||e.data?.type!=='gauth-code')return;
+      window.removeEventListener('message',handler);clearInterval(chk);
+      try{resolve(await exchangeCode(e.data.code));}catch(err){reject(err);}
+    };
+    window.addEventListener('message',handler);
+    const chk=setInterval(()=>{if(popup.closed){window.removeEventListener('message',handler);clearInterval(chk);reject(new Error('Auth window closed'));}},800);
+  });
+}
+async function exchangeCode(code){
+  const r=await fetch('https://oauth2.googleapis.com/token',{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:S.clientId,client_secret:S.clientSecret,redirect_uri:redirectUri(),grant_type:'authorization_code',code,code_verifier:S._pkceVerifier})
+  });
+  const d=await r.json();
+  if(!d.access_token)throw new Error(d.error_description||d.error||'Token exchange failed');
+  if(d.refresh_token)S.refreshToken=d.refresh_token;
+  return{access_token:d.access_token,expires_in:d.expires_in||3600};
+}
+async function doRefreshToken(){
+  const r=await fetch('https://oauth2.googleapis.com/token',{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:S.clientId,client_secret:S.clientSecret,grant_type:'refresh_token',refresh_token:S.refreshToken})
+  });
+  const d=await r.json();
+  if(!d.access_token)throw new Error(d.error_description||d.error||'Refresh failed');
+  return{access_token:d.access_token,expires_in:d.expires_in||3600};
+}
+function tokenValid(){return!!(S.token&&S.tokenExp&&Date.now()<S.tokenExp-60000);}
+async function ensureToken(){
+  if(tokenValid())return S.token;
+  if(S.refreshToken){
+    try{const t=await doRefreshToken();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;lsSave();return S.token;}
+    catch(e){S.refreshToken=null;lsSave();}
+  }
+  const t=await openAuthPopup();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;lsSave();return S.token;
+}
+async function gfetch(url){
+  const tok=await ensureToken();
+  const r=await fetch(url,{headers:{Authorization:'Bearer '+tok}});
+  if(!r.ok)throw new Error('HTTP '+r.status+': '+r.url);
+  return r.json();
+}
+async function sheetValues(range){
+  const d=await gfetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(range));
+  return d.values||[];
+}
+
+async function fetchTeamUpdates(){
+  try{
+    const rows=await sheetValues("'RR Projects'!I:I");
+    return rows.slice(1).map(r=>r[0]||'');
+  }catch(e){addLog('Team Update re-fetch: '+e.message,'err');return[];}
+}
+
+function decodeB64(s){try{return decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));}catch(e){return '';}}
+function extractBody(payload){
+  if(!payload)return '';
+  if(payload.body?.data)return decodeB64(payload.body.data);
+  function find(parts,mime){for(const p of(parts||[])){if(p.mimeType===mime&&p.body?.data)return decodeB64(p.body.data);const n=find(p.parts,mime);if(n)return n;}return '';}
+  const plain=find(payload.parts,'text/plain');if(plain)return plain;
+  const html=find(payload.parts,'text/html');return html?html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';
+}
+async function fetchEmails(){
+  const after=Math.floor((Date.now()-7*86400000)/1000);
+  const q=encodeURIComponent('subject:"Fwd: Work Emails as of" after:'+after);
+  try{
+    const d=await gfetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q='+q+'&maxResults=10');
+    if(!d.messages?.length){addLog('Gmail: no digest emails','info');return [];}
+    const det=await Promise.allSettled(d.messages.slice(0,5).map(m=>gfetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+m.id+'?format=full')));
+    return det.filter(r=>r.status==='fulfilled').map(r=>({
+      subject:r.value.payload?.headers?.find(h=>h.name==='Subject')?.value||'',
+      body:extractBody(r.value.payload).slice(0,4000),
+    })).filter(e=>e.body);
+  }catch(e){addLog('Gmail: '+e.message,'err');return [];}
+}
+async function fetchCalendar(){
+  const tmin=new Date(Date.now()-3*86400000).toISOString();
+  const tmax=new Date(Date.now()+7*86400000).toISOString();
+  try{
+    const d=await gfetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin='+encodeURIComponent(tmin)+'&timeMax='+encodeURIComponent(tmax)+'&singleEvents=true&orderBy=startTime&maxResults=50');
+    return(d.items||[]).map(e=>({summary:e.summary||'',start:e.start?.dateTime?.slice(0,10)||e.start?.date||''}));
+  }catch(e){addLog('Calendar: '+e.message,'err');return [];}
+}
+
+async function callClaude(system,userMsg){
+  if(!S.claudeKey)return null;
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':S.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:CLAUDE_MODEL,max_tokens:300,system,messages:[{role:'user',content:userMsg}]})
+    });
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error?.message||'API '+r.status);
+    return d.content?.[0]?.text||null;
+  }catch(e){addLog('Claude: '+e.message,'err');return null;}
+}
+
+function normProjName(name){
+  return String(name||'')
+    .replace(/\bSop\b/g,'SOP')
+    .replace(/\bEdd\b/g,'EDD')
+    .replace(/\bDms\b/g,'DMS');
+}
+function normalizeStatus(s){
+  const k=String(s||'').toLowerCase().replace(/[-\s]/g,'');
+  return({ongoing:'Ongoing',paused:'Paused',tostart:'To Start',closed:'Closed',deprioritised:'Deprioritised',deprioritized:'Deprioritised'}[k])||(s||'');
+}
+function statusClass(s){
+  const k=String(s||'').toLowerCase().replace(/[-\s]/g,'');
+  return({ongoing:'s-ongoing',paused:'s-paused',tostart:'s-tostart',deprioritised:'s-deprio',deprioritized:'s-deprio',closed:'s-closed'}[k])||'s-tostart';
+}
+function priClass(p){return({'p1':'p1','p2':'p2','p3':'p3'}[String(p||'').toLowerCase().replace(/[^a-z0-9]/g,'')])||'p3';}
+
+function matchCtx(name,emails,events){
+  const words=String(name||'').toLowerCase().split(/\s+/).filter(w=>w.length>3);
+  const score=t=>words.filter(w=>String(t).toLowerCase().includes(w)).length;
+  return{filteredEmails:emails.filter(e=>score(e.subject+' '+e.body)>0),filteredEvents:events.filter(e=>score(e.summary)>0)};
+}
+
+// ── AI Synthesis ──────────────────────────────────────────────────────────────
+// Returns the generated text (or null). Does NOT store — caller is responsible
+// for re-finding the live index and storing after the async call completes.
+async function synthesizeElab(row,emails,events,teamUpdate,edits){
+  try{
+    const notes=(edits?.notes||'').trim();
+    const pri=String((edits?.pri!==undefined?edits.pri:row[C.PRI])||'');
+    const pic=String((edits?.pic!==undefined?edits.pic:row[C.PIC])||'');
+    const sin=String((edits?.sin!==undefined?edits.sin:row[C.SIN])||'');
+    const status=String((edits?.status!==undefined?edits.status:row[C.STATUS])||'');
+    const tu=String(teamUpdate||'').trim();
+    const{filteredEmails,filteredEvents}=matchCtx(row[C.PROJ]||'',emails,events);
+    const hasSignals=tu||filteredEmails.length||filteredEvents.length||notes;
+    if(!hasSignals&&!row[C.ELAB]&&!status)return null;
+    let ctx='Project: '+(row[C.PROJ]||'');
+    if(pri)ctx+='\nPriority: '+pri;
+    if(pic)ctx+='\nPIC: '+pic;
+    if(sin)ctx+='\nStand-in: '+sin;
+    if(status)ctx+='\nStatus: '+normalizeStatus(status);
+    if(tu)ctx+='\n\nTeam Update (Col I):\n'+tu;
+    if(row[C.ELAB])ctx+='\n\nExisting elaboration:\n'+row[C.ELAB];
+    if(notes)ctx+='\n\nAdditional context (manual):\n'+notes;
+    if(filteredEmails.length)ctx+='\n\nEmail digest:\n'+filteredEmails.map(em=>'--- '+em.subject+' ---\n'+em.body).join('\n\n');
+    if(filteredEvents.length)ctx+='\n\nCalendar events:\n'+filteredEvents.map(ev=>'- '+ev.summary+' ('+ev.start+')').join('\n');
+    return await callClaude(ELAB_SYSTEM,ctx);
+  }catch(e){dbg('synthesizeElab: '+e.message,'err');return null;}
+}
+
+// ── Stale project modal (Promise-based — awaited by doSync) ───────────────────
+function showStaleModal(staleItems){
+  return new Promise(resolve=>{
+    _staleResolve=choice=>{
+      document.getElementById('stale-modal').style.display='none';
+      _staleResolve=null;
+      resolve(choice);
+    };
+    const list=document.getElementById('stale-proj-list');
+    list.innerHTML=staleItems.map(({name})=>'<div class="stale-proj-item">'+esc(name)+'</div>').join('');
+    document.getElementById('stale-modal').style.display='';
+  });
+}
+
+// ── Row deletion ──────────────────────────────────────────────────────────────
+function deleteRow(i){
+  S.rr.splice(i,1);
+  function reindex(obj){
+    const n={};
+    Object.keys(obj).forEach(k=>{
+      const ki=parseInt(k);
+      if(ki<i)n[ki]=obj[ki];
+      else if(ki>i)n[ki-1]=obj[ki];
+    });
+    return n;
+  }
+  S.edits=reindex(S.edits);
+  S.elab=reindex(S.elab);
+  lsSave();
+}
+function deleteRowFromModal(){
+  const i=S.editRow;if(i==null)return;
+  const name=S.rr[i]?.[C.PROJ]||'this project';
+  if(!confirm('Delete "'+name+'" from the tracker? This cannot be undone.'))return;
+  deleteRow(i);
+  closeModal();
+  buildFilters();renderRR();
+}
+
+async function doSync(manual){
+  if(S.syncing)return;
+  S.syncing=true;setSyncState('syncing','Syncing…');
+  if(manual)document.getElementById('log-panel').style.display='';
+  S.log=[];
+  try{
+    // ── Fetch RR Projects ──────────────────────────────────────────────────
+    addLog('Fetching RR Projects…','info');
+    const rrRaw=await sheetValues("'RR Projects'!A:N");
+    const freshRR=rrRaw.slice(1).filter(r=>r.some(c=>c));
+    const freshNames=new Set(freshRR.map(r=>String(r[C.PROJ]||'').trim().toLowerCase()));
+
+    // Set of names to skip in synthesis (populated below based on user choice)
+    let skipSynthNames=new Set();
+
+    if(!S.rr.length){
+      // First load
+      S.rr=freshRR;
+      addLog(S.rr.length+' RR rows loaded','ok');
+    }else{
+      // Append new projects
+      const existingNames=new Set(S.rr.map(r=>String(r[C.PROJ]||'').trim().toLowerCase()));
+      const newRows=freshRR.filter(row=>{
+        const key=String(row[C.PROJ]||'').trim().toLowerCase();
+        return key&&!existingNames.has(key);
+      });
+      if(newRows.length){
+        S.rr.push(...newRows);
+        addLog(newRows.length+' new project(s) appended · '+S.rr.length+' total','ok');
+      }else{
+        addLog(S.rr.length+' RR rows (no new projects)','info');
+      }
+
+      // Detect stale projects (in tracker but not in sheet)
+      const stale=S.rr
+        .map((r,i)=>({name:String(r[C.PROJ]||'').trim(),idx:i}))
+        .filter(({name})=>name&&!freshNames.has(name.toLowerCase()));
+
+      if(stale.length){
+        addLog(stale.length+' project(s) no longer in sheet — awaiting your decision','info');
+        renderAll(); // show current state before blocking on modal
+        const choice=await showStaleModal(stale);
+        if(choice==='remove-all'){
+          // Sort descending so splices don't shift earlier indices
+          [...stale].sort((a,b)=>b.idx-a.idx).forEach(({idx})=>deleteRow(idx));
+          addLog(stale.length+' stale project(s) removed','ok');
+          buildFilters();renderRR();
+        }else{
+          // handle-individually: skip these in synthesis to avoid wasting tokens
+          skipSynthNames=new Set(stale.map(({name})=>name.toLowerCase()));
+          addLog('Stale projects kept — skipping synthesis for them','info');
+        }
+      }
+    }
+
+    // ── Fetch Auto & Scope (first load only) ──────────────────────────────
+    if(!S.auto.length){
+      addLog('First load: fetching Automation Pipeline…','info');
+      const autoRaw=await sheetValues("'Automation Pipeline'!A:Z");
+      S.auto=autoRaw.filter(r=>r.some(c=>c));
+      addLog(S.auto.length+' pipeline rows','ok');
+    }else{addLog('Automation Pipeline: local (no reset)','info');}
+    if(!S.scope.length){
+      addLog('First load: fetching Team Scope…','info');
+      const scopeRaw=await sheetValues("'Scope'!A:Z");
+      S.scope=scopeRaw.filter(r=>r.some(c=>c));
+      addLog(S.scope.length+' scope rows','ok');
+    }else{addLog('Team Scope: local (no reset)','info');}
+
+    renderAll();
+
+    // ── AI Synthesis ───────────────────────────────────────────────────────
+    const emails=await fetchEmails();
+    const events=await fetchCalendar();
+    addLog(emails.length+' email(s) · '+events.length+' calendar events','info');
+
+    if(S.claudeKey){
+      addLog('Re-fetching Col I (Team Update) for synthesis…','info');
+      const teamUpdateRows=await fetchTeamUpdates();
+
+      // Build name→teamUpdate map from fresh sheet data
+      const teamUpdateMap=new Map();
+      freshRR.forEach((row,i)=>{
+        const name=String(row[C.PROJ]||'').trim().toLowerCase();
+        if(name)teamUpdateMap.set(name,teamUpdateRows[i]||'');
+      });
+      addLog('Col I fetched ('+teamUpdateRows.filter(Boolean).length+' non-empty)','ok');
+
+      // Snapshot synthesis targets by project name (not index) after stale resolution.
+      // Index is re-looked up live before storing to handle any mid-loop deletions.
+      const synthTargets=S.rr
+        .map(r=>String(r[C.PROJ]||'').trim())
+        .filter(name=>name&&!skipSynthNames.has(name.toLowerCase()));
+
+      let n=0;
+      for(const projName of synthTargets){
+        // Re-find live index — may have shifted if user deleted a project via edit modal
+        const liveIdx=S.rr.findIndex(r=>String(r[C.PROJ]||'').trim()===projName);
+        if(liveIdx===-1)continue; // deleted mid-loop, skip
+
+        const row=S.rr[liveIdx];
+        const edits=S.edits[liveIdx]||{};
+
+        // Always re-synthesise on every sync (manual or auto).
+
+        const teamUpdate=teamUpdateMap.get(projName.toLowerCase())||'';
+        const result=await synthesizeElab(row,emails,events,teamUpdate,edits);
+
+        if(result){
+          // Re-find index again after async Claude call — user may have deleted mid-call
+          const storeIdx=S.rr.findIndex(r=>String(r[C.PROJ]||'').trim()===projName);
+          if(storeIdx!==-1){
+            S.elab[storeIdx]=result;
+            n++;
+            if(n%5===0)renderRR();
+          }
+        }
+      }
+      addLog('Claude: synthesised '+n,'ok');
+    }else{addLog('Claude: skipped (no API key)','info');}
+
+    S.lastSync=new Date().toISOString();lsSave();
+    setSyncState('ok','Synced '+fmtTime(S.lastSync));
+  }catch(e){
+    addLog('Sync failed: '+e.message,'err');
+    dbg('doSync: '+e.message,'err');
+    setSyncState('err','Sync failed');
+  }
+  S.syncing=false;renderAll();
+}
+function scheduleAutoSync(){
+  const now=Date.now(),next=new Date(now);
+  next.setUTCHours(6,0,0,0);
+  if(next.getTime()<=now)next.setUTCDate(next.getUTCDate()+1);
+  setTimeout(()=>{doSync(false);scheduleAutoSync();},next.getTime()-now);
+}
+
+// ── Google Drive backup ───────────────────────────────────────────────────────
+async function saveToDrive(silent){
+  try{
+    const tok=await ensureToken();
+    const payload=localStorage.getItem(LS_KEY)||'{}';
+    const blob=new Blob([payload],{type:'application/json'});
+    let fileId=S.driveFileId;
+
+    // Search for existing file if we don't have an ID cached
+    if(!fileId){
+      const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'" and trashed=false');
+      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
+      const data=await res.json();
+      if(data.files&&data.files.length)fileId=data.files[0].id;
+    }
+
+    const meta=JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json'});
+    const form=new FormData();
+    form.append('metadata',new Blob([meta],{type:'application/json'}));
+    form.append('file',blob);
+
+    let r;
+    if(fileId){
+      r=await fetch('https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?uploadType=multipart',{method:'PATCH',headers:{Authorization:'Bearer '+tok},body:form});
+    }else{
+      r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+tok},body:form});
+    }
+    const d=await r.json();
+    if(d.id){S.driveFileId=d.id;lsSave();}
+    if(!silent)addLog('Saved to Drive ✓ ('+new Date().toLocaleTimeString('en-SG')+')','ok');
+    updateDriveStatus(true);
+  }catch(e){
+    if(!silent)addLog('Drive save failed: '+e.message,'err');
+    dbg('saveToDrive: '+e.message,'err');
+    updateDriveStatus(false);
+  }
+}
+
+async function restoreFromDrive(){
+  if(!confirm('Restore from Google Drive? This will overwrite your current local data.'))return;
+  try{
+    const tok=await ensureToken();
+    let fileId=S.driveFileId;
+    if(!fileId){
+      const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'" and trashed=false');
+      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
+      const data=await res.json();
+      if(!data.files||!data.files.length){alert('No backup file found in Google Drive.');return;}
+      fileId=data.files[0].id;
+    }
+    const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
+    const text=await r.text();
+    localStorage.setItem(LS_KEY,text);
+    lsLoad();renderAll();
+    addLog('Restored from Drive ✓','ok');
+    document.getElementById('log-panel').style.display='';
+  }catch(e){alert('Restore failed: '+e.message);}
+}
+
+function updateDriveStatus(ok){
+  const el=document.getElementById('drive-status');
+  if(!el)return;
+  el.textContent=ok?'☁ Saved':'☁ —';
+  el.style.color=ok?'#3aa876':'var(--text-muted)';
+  el.title=ok?'Last Drive save: '+new Date().toLocaleTimeString('en-SG'):'Not yet saved to Drive';
+}
+
+function scheduleDriveSave(){
+  // 5:30pm SGT = 09:30 UTC
+  const now=Date.now(),next=new Date(now);
+  next.setUTCHours(9,30,0,0);
+  if(next.getTime()<=now)next.setUTCDate(next.getUTCDate()+1);
+  const ms=next.getTime()-now;
+  dbg('Drive save scheduled in '+(ms/60000).toFixed(0)+'min','info');
+  setTimeout(()=>{saveToDrive(true);scheduleDriveSave();},ms);
+}
+function addLog(msg,cls){
+  S.log.push({msg,cls:cls||'info',ts:new Date().toLocaleTimeString('en-SG')});
+  const el=document.getElementById('log-entries');
+  if(el){el.innerHTML=S.log.map(l=>'<div class="log-'+l.cls+'">['+l.ts+'] '+l.msg+'</div>').join('');el.scrollTop=el.scrollHeight;}
+}
+function setSyncState(state,label){
+  const dot=document.getElementById('sync-dot'),ts=document.getElementById('sync-ts');
+  if(dot)dot.className='sync-dot '+state;
+  if(ts)ts.textContent=label;
+}
+function fmtTime(iso){if(!iso)return '';return new Date(iso).toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit'});}
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escBr(s){return esc(s).replace(/\n/g,'<br>');}
+
+function renderElabHtml(text){
+  try{
+    if(!text||typeof text!=='string')return '<span style="color:var(--text-muted)">—</span>';
+    const defs=[{key:'Status',label:'Status'},{key:'Next Steps',label:'Next Steps'},{key:'Risks',label:'Risks'}];
+    let html='';
+    for(const{key,label}of defs){
+      const re=new RegExp('\\*\\*'+key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\*\\*([\\s\\S]*?)(?=\\*\\*(?:Status|Next Steps|Risks)\\*\\*|$)');
+      const m=text.match(re);if(!m)continue;
+      const bullets=m[1].trim().split('\n').map(l=>l.trim()).filter(l=>/^[-•]/.test(l)).map(l=>l.replace(/^[-•]\s*/,'').trim()).filter(Boolean);
+      if(!bullets.length)continue;
+      html+='<div class="elab-sec"><span class="elab-lbl">'+label+'</span><ul class="elab-ul">';
+      bullets.forEach(b=>{html+='<li>'+esc(b)+'</li>';});
+      html+='</ul></div>';
+    }
+    if(!html){
+      const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+      html=lines.length>1?'<ul class="elab-ul">'+lines.map(l=>'<li>'+esc(l.replace(/^[-•]\s*/,''))+'</li>').join('')+'</ul>':'<span style="font-size:12px;color:var(--text-secondary)">'+esc(lines[0]||text)+'</span>';
+    }
+    return html;
+  }catch(e){return '<span style="color:var(--text-muted);font-size:11px">—</span>';}
+}
+function renderTaskHtml(text,rowIdx){
+  if(!text)return '<span style="color:var(--text-muted)">—</span>';
+  const lines=String(text).split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean);
+  if(!lines.length)return '<span style="color:var(--text-muted)">—</span>';
+  const checked=new Set(S.edits[rowIdx]?.checkedTasks||[]);
+  return lines.map((line,li)=>{
+    const chk=checked.has(li);
+    return '<label class="task-chk-row'+(chk?' done':'')+'"><input type="checkbox" class="task-chk" data-row="'+rowIdx+'" data-line="'+li+'"'+(chk?' checked':'')+'><span class="task-chk-text">'+esc(line.charAt(0).toUpperCase()+line.slice(1))+'</span></label>';
+  }).join('');
+}
+
+function effectivePic(i){const e=S.edits[i]||{};return e.pic!==undefined?e.pic:String(S.rr[i]?.[C.PIC]||'');}
+function effectiveTask(i){const e=S.edits[i]||{};return e.task!==undefined?e.task:String(S.rr[i]?.[C.TASK]||'');}
+function effectiveAi(i){return String(S.rr[i]?.[C.AI]||'');}
+
+function toggleBoolFilter(key,el){
+  if(key==='task')S.filterTask=!S.filterTask;
+  else if(key==='ai')S.filterAi=!S.filterAi;
+  el.classList.toggle('on',key==='task'?S.filterTask:S.filterAi);
+  renderRR();
+}
+const STATUS_ORDER=['Ongoing','To Start','Paused','Closed','Deprioritised'];
+const PRI_ORDER=['BAU','P1','P2','P3'];
+const PIC_ORDER=['Akshit','Mark','Seth','Le Yu'];
+const TYPE_ORDER=['Initiative','Reporting'];
+const CAT_ORDER=['HC Planning','Productivity','Performance','SOP','DMS Features','Automation','Warehouse'];
+function buildFilters(){
+  const dataStatuses=new Set(S.rr.map(r=>normalizeStatus(r[C.STATUS])).filter(Boolean));
+  const ns=[...STATUS_ORDER.filter(s=>dataStatuses.has(s)),...[...dataStatuses].filter(s=>!STATUS_ORDER.includes(s))];
+  renderPills('f-status',ns,'status');
+  const dataPri=new Set(S.rr.map((_,i)=>{const e=S.edits[i]||{};return e.pri!==undefined?e.pri:S.rr[i][C.PRI];}).filter(Boolean));
+  renderPills('f-pri',[...PRI_ORDER.filter(p=>dataPri.has(p)),...[...dataPri].filter(p=>!PRI_ORDER.includes(p))],'pri');
+  const dataPic=new Set(S.rr.map((_,i)=>effectivePic(i)).filter(Boolean));
+  renderPills('f-pic',[...PIC_ORDER.filter(p=>dataPic.has(p)),...[...dataPic].filter(p=>!PIC_ORDER.includes(p))],'pic');
+  const dataType=new Set(S.rr.map((_,i)=>{const e=S.edits[i]||{};return(e.type!==undefined?e.type:S.rr[i][C.TYPE])||'';}).filter(Boolean));
+  renderPills('f-type',[...TYPE_ORDER.filter(t=>dataType.has(t)),...[...dataType].filter(t=>!TYPE_ORDER.includes(t))],'type');
+  const dataCat=new Set(S.rr.map((_,i)=>{const e=S.edits[i]||{};return(e.cat!==undefined?e.cat:S.rr[i][C.CAT])||'';}).filter(Boolean));
+  renderPills('f-cat',[...CAT_ORDER.filter(c=>dataCat.has(c)),...[...dataCat].filter(c=>!CAT_ORDER.includes(c))],'cat');
+  const pt=document.getElementById('pill-task'),pa=document.getElementById('pill-ai');
+  if(pt)pt.classList.toggle('on',S.filterTask);
+  if(pa)pa.classList.toggle('on',S.filterAi);
+}
+function renderPills(id,vals,fk){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML=vals.map(v=>'<span class="pill'+(S.activeF[fk].has(v)?' on':'')+'" data-fk="'+esc(fk)+'" data-val="'+esc(v)+'">'+esc(v)+'</span>').join('');
+}
+function toggleFilter(key,val){
+  if(S.activeF[key].has(val))S.activeF[key].delete(val);else S.activeF[key].add(val);
+  buildFilters();renderRR();
+}
+
+function renderRR(){
+  const wrap=document.getElementById('rr-table');if(!wrap)return;
+  try{
+    const q=(document.getElementById('rr-search')?.value||'').toLowerCase();
+    const indexed=S.rr.map((row,i)=>[row,i]).filter(([row,i])=>{
+      const e=S.edits[i]||{};
+      const status=normalizeStatus(e.status!==undefined?e.status:row[C.STATUS]);
+      const pic=effectivePic(i);
+      const task=effectiveTask(i);
+      const ai=effectiveAi(i);
+      const effType=e.type!==undefined?e.type:row[C.TYPE]||'';
+      const effCat=e.cat!==undefined?e.cat:row[C.CAT]||'';
+      if(S.activeF.type.size&&!S.activeF.type.has(effType))return false;
+      if(S.activeF.cat.size&&!S.activeF.cat.has(effCat))return false;
+      if(S.activeF.status.size&&!S.activeF.status.has(status))return false;
+      const effPri=S.edits[i]?.pri!==undefined?S.edits[i].pri:row[C.PRI];
+      if(S.activeF.pri.size&&!S.activeF.pri.has(effPri))return false;
+      if(S.activeF.pic.size&&!S.activeF.pic.has(pic))return false;
+      if(S.filterTask&&!task.trim())return false;
+      if(S.filterAi&&ai.trim().toLowerCase()==='no use case')return false;
+      if(q&&![row[C.PROJ],row[C.CAT],row[C.TYPE],pic].join(' ').toLowerCase().includes(q))return false;
+      return true;
+    });
+    const cnt=document.getElementById('rr-count');
+    if(cnt)cnt.textContent=indexed.length+' of '+S.rr.length;
+    if(!S.rr.length){wrap.innerHTML='<div class="empty"><h3>Not yet synced</h3><p>Click "Sync now" to load.</p></div>';return;}
+    if(!indexed.length){wrap.innerHTML='<div class="empty"><h3>No projects match</h3><p>Adjust filters or search.</p></div>';return;}
+    let rows='';
+    for(let idx=0;idx<indexed.length;idx++){
+      try{
+        const row=indexed[idx][0],i=indexed[idx][1];
+        const e=S.edits[i]||{};
+        const pri=String((e.pri!==undefined?e.pri:row[C.PRI])||'');
+        const pic=effectivePic(i);
+        const sin=String((e.sin!==undefined?e.sin:row[C.SIN])||'');
+        const status=String((e.status!==undefined?e.status:row[C.STATUS])||'');
+        const task=effectiveTask(i);
+        const ai=effectiveAi(i);
+        const effType=e.type!==undefined?e.type:row[C.TYPE]||'';
+        const effCat=e.cat!==undefined?e.cat:row[C.CAT]||'';
+        const labels=[effType,effCat].filter(Boolean).map(v=>'<span class="proj-label">'+esc(v)+'</span>').join('');
+        let elabHtml;
+        if(e.elab&&typeof e.elab==='string')elabHtml=renderElabHtml(e.elab);
+        else if(S.elab[i]&&typeof S.elab[i]==='string')elabHtml=renderElabHtml(S.elab[i]);
+        else{const raw=String(row[C.ELAB]||'');elabHtml=raw?'<span style="font-size:12px;color:var(--text-secondary)">'+esc(raw)+'</span>':'<span style="color:var(--text-muted);font-size:11px">AI synthesising…</span>';}
+        rows+='<tr>'
+          +'<td class="c-proj"><div class="proj-name">'+esc(normProjName(row[C.PROJ]||''))+'</div>'+(labels?'<div class="proj-labels">'+labels+'</div>':'')+'</td>'
+          +'<td class="c-pri">'+(pri?'<span class="badge '+priClass(pri)+'">'+esc(pri)+'</span>':'')+'</td>'
+          +'<td><span style="font-size:12px">'+esc(pic)+'</span></td>'
+          +'<td><span style="font-size:12px;color:var(--text-secondary)">'+esc(sin)+'</span></td>'
+          +'<td class="c-status">'+(status?'<span class="badge '+statusClass(status)+'">'+esc(normalizeStatus(status))+'</span>':'')+'</td>'
+          +'<td class="c-ela">'+elabHtml+'</td>'
+          +'<td class="c-task">'+renderTaskHtml(task,i)+'</td>'
+          +'<td class="c-ai"><span style="font-size:11.5px;color:var(--text-muted)">'+esc(ai)+'</span></td>'
+          +'<td class="c-act"><button class="edit-btn" onclick="openModal('+i+')" title="Edit">✎</button></td>'
+          +'</tr>';
+      }catch(rowErr){
+        dbg('Row error idx='+idx+': '+rowErr.message,'err');
+        rows+='<tr><td colspan="9" style="font-size:11px;color:#e8624b;padding:6px 12px">⚠ Row error</td></tr>';
+      }
+    }
+    wrap.innerHTML='<table><thead><tr>'
+      +'<th class="c-proj">Project</th><th class="c-pri">P</th><th class="c-pic">PIC</th>'
+      +'<th class="c-sin">Stand-in</th><th class="c-status">Status</th>'
+      +'<th class="c-ela">Status Elaboration</th><th class="c-task">Noelle\'s Task</th>'
+      +'<th class="c-ai">AI Pot.</th><th class="c-act"></th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table>';
+  }catch(e){dbg('renderRR: '+e.message,'err');}
+}
+
+function autoBaseRow(sheetRow){const workflow=(sheetRow||[]).find(c=>c)||'';return[workflow,'','','',''];}
+function renderAuto(){
+  const wrap=document.getElementById('auto-table');if(!wrap)return;
+  const allRows=S.auto.map((row,idx)=>({row,idx})).filter(({row})=>row.some(c=>c));
+  const sheetHeaderIdx=S.auto.findIndex(r=>r.filter(c=>c).length>=2);
+  const displayRows=allRows.filter(({idx})=>idx!==sheetHeaderIdx&&!S.autoDeleted.includes(idx));
+  const cnt=document.getElementById('auto-count');
+  if(cnt)cnt.textContent=(displayRows.length+S.autoLocal.length)+' items';
+  if(!allRows.length){wrap.innerHTML='<div class="empty"><h3>No data</h3><p>Sync to load.</p></div>';return;}
+  let tbody='';
+  displayRows.forEach(({row:origRow,idx})=>{
+    if(origRow[0]&&origRow.slice(1).every(c=>!c)){
+      tbody+='<tr class="auto-section-row"><td colspan="'+(AUTO_COLS.length+1)+'">'+esc(origRow[0])+'</td></tr>';
+      return;
+    }
+    const base=autoBaseRow(origRow);const cur=S.autoEdits[idx]||base;
+    tbody+='<tr>'+AUTO_COLS.map((col,ci)=>'<td style="padding:4px 6px;"><input type="text" class="cell-input'+(ci===0?' wf':'')+'" value="'+esc(cur[ci]||'')+'" data-idx="'+idx+'" data-ci="'+ci+'" onchange="saveAutoCell(this)" onblur="saveAutoCell(this)"></td>').join('')
+      +'<td style="width:36px;padding:4px 6px;text-align:center;"><button class="edit-btn" onclick="confirmDeleteAutoRow('+idx+')" title="Remove" style="color:#e8624b;font-size:15px;">✕</button></td></tr>';
+  });
+  S.autoLocal.forEach((row,li)=>{
+    tbody+='<tr class="local-row">'+AUTO_COLS.map((col,ci)=>'<td style="padding:4px 6px;"><input type="text" class="cell-input'+(ci===0?' wf':'')+'" value="'+esc(row[ci]||'')+'" data-li="'+li+'" data-ci="'+ci+'" onchange="saveLocalAutoCell(this)" onblur="saveLocalAutoCell(this)"></td>').join('')
+      +'<td style="width:36px;padding:4px 6px;text-align:center;"><button class="edit-btn" onclick="removeAutoRow('+li+')" title="Remove" style="color:#e8624b;font-size:15px;">✕</button></td></tr>';
+  });
+  if(!tbody)tbody='<tr><td colspan="'+(AUTO_COLS.length+1)+'" style="text-align:center;color:var(--text-muted);padding:28px;font-size:12px">No items — add a row below</td></tr>';
+  wrap.innerHTML='<div class="generic-wrap"><table><thead><tr>'+AUTO_COLS.map(h=>'<th>'+esc(h)+'</th>').join('')+'<th></th></tr></thead><tbody>'+tbody+'</tbody></table>'
+    +'<div class="add-row-bar"><button class="btn btn-secondary btn-sm" onclick="addAutoRow()">+ Add row</button>'
+    +(S.autoLocal.length?'<span style="font-size:11px;color:var(--text-muted)">'+S.autoLocal.length+' local row'+(S.autoLocal.length>1?'s':'')+'</span>':'')+'</div></div>';
+}
+function saveAutoCell(input){
+  const idx=parseInt(input.dataset.idx),ci=parseInt(input.dataset.ci);if(isNaN(idx)||isNaN(ci))return;
+  if(!S.autoEdits[idx])S.autoEdits[idx]=[...autoBaseRow(S.auto[idx]||[])];
+  S.autoEdits[idx][ci]=input.value;lsSave();
+}
+function saveLocalAutoCell(input){
+  const li=parseInt(input.dataset.li),ci=parseInt(input.dataset.ci);if(isNaN(li)||isNaN(ci))return;
+  if(!S.autoLocal[li])S.autoLocal[li]=Array(AUTO_COLS.length).fill('');
+  S.autoLocal[li][ci]=input.value;lsSave();
+}
+function confirmDeleteAutoRow(idx){
+  if(!confirm('Remove this row permanently?'))return;
+  S.auto.splice(idx,1);
+  const newEdits={};
+  Object.keys(S.autoEdits).forEach(k=>{const ki=parseInt(k);if(ki<idx)newEdits[ki]=S.autoEdits[ki];else if(ki>idx)newEdits[ki-1]=S.autoEdits[ki];});
+  S.autoEdits=newEdits;S.autoDeleted=S.autoDeleted.filter(d=>d!==idx).map(d=>d>idx?d-1:d);
+  lsSave();renderAuto();
+}
+function addAutoRow(){
+  S.autoLocal.push(Array(AUTO_COLS.length).fill(''));lsSave();renderAuto();
+  setTimeout(()=>{const rows=document.querySelectorAll('#auto-table .local-row');const last=rows[rows.length-1];if(last)last.querySelector('input.cell-input')?.focus();},50);
+}
+function removeAutoRow(li){if(!confirm('Remove this row?'))return;S.autoLocal.splice(li,1);lsSave();renderAuto();}
+
+function scopeHeaderCols(){return(S.scope[0]||[]).map((h,i)=>({h,i})).filter(({h})=>h);}
+function renderScope(){
+  const wrap=document.getElementById('scope-table');if(!wrap)return;
+  const hc=scopeHeaderCols();const rawRows=S.scope.slice(1).filter(r=>r.some(c=>c));
+  if(!hc.length||!rawRows.length){wrap.innerHTML='<div class="empty"><h3>No data</h3><p>Sync to load Team Scope.</p></div>';return;}
+  const lastVals=[];
+  const dataRows=rawRows.map(row=>{
+    const f=[...row];
+    for(let ci=0;ci<Math.min(2,S.scope[0].length);ci++){if(!f[ci]&&lastVals[ci])f[ci]=lastVals[ci];if(f[ci])lastVals[ci]=f[ci];}
+    return f;
+  });
+  let rows=dataRows.map((row,ri)=>{
+    const edited=S.scopeEdits[ri]||{};
+    return '<tr>'+hc.map(({h,i})=>{
+      const val=edited[i]!==undefined?edited[i]:(row[i]||'');
+      return '<td class="editable-cell" contenteditable="true" data-ri="'+ri+'" data-ci="'+i+'" onblur="saveScopeCell(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();this.blur();}">'
+        +'<span data-scv="'+esc(val)+'"></span></td>';
+    }).join('')+'</tr>';
+  }).join('');
+  wrap.innerHTML='<div class="generic-wrap"><table><thead><tr>'+hc.map(({h})=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+  wrap.querySelectorAll('[data-scv]').forEach(span=>{
+    const td=span.parentElement;
+    const raw=span.getAttribute('data-scv').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+    td.innerText=raw;
+  });
+}
+function saveScopeCell(el){
+  const ri=parseInt(el.dataset.ri),ci=parseInt(el.dataset.ci);if(isNaN(ri)||isNaN(ci))return;
+  if(!S.scopeEdits[ri])S.scopeEdits[ri]={};S.scopeEdits[ri][ci]=el.innerText;lsSave();
+}
+
+function renderAll(){
+  try{buildFilters();renderRR();renderAuto();renderScope();if(S.lastSync)setSyncState('ok','Synced '+fmtTime(S.lastSync));}
+  catch(e){dbg('renderAll: '+e.message,'err');}
+}
+
+function openModal(rowIdx){
+  S.editRow=rowIdx;const row=S.rr[rowIdx];if(!row)return;
+  const e=S.edits[rowIdx]||{};
+  const effType=e.type!==undefined?e.type:row[C.TYPE]||'';
+  const effCat=e.cat!==undefined?e.cat:row[C.CAT]||'';
+  document.getElementById('modal-title').textContent=normProjName(row[C.PROJ]||'')||'Edit Row';
+  document.getElementById('modal-sub').textContent=[effType,effCat].filter(Boolean).join(' · ');
+  document.getElementById('modal-type').value=effType;
+  document.getElementById('modal-cat').value=effCat;
+  document.getElementById('modal-pri').value=(e.pri!==undefined?e.pri:row[C.PRI])||'';
+  document.getElementById('modal-pic').value=effectivePic(rowIdx);
+  document.getElementById('modal-sin').value=(e.sin!==undefined?e.sin:row[C.SIN])||'';
+  document.getElementById('modal-status').value=(e.status!==undefined?e.status:normalizeStatus(row[C.STATUS]))||'';
+  document.getElementById('modal-task').value=(e.task!==undefined?e.task:row[C.TASK])||'';
+  document.getElementById('modal-notes').value=e.notes||'';
+  const et=typeof e.elab==='string'?e.elab:typeof S.elab[rowIdx]==='string'?S.elab[rowIdx]:'';
+  const p=parseElabSections(et);
+  document.getElementById('modal-elab-status').value=p.status;
+  document.getElementById('modal-elab-nextsteps').value=p.nextsteps;
+  document.getElementById('modal-elab-risks').value=p.risks;
+  document.getElementById('modal-resynth-msg').textContent='';
+  document.getElementById('edit-modal').style.display='';
+}
+function parseElabSections(text){
+  const r={status:'',nextsteps:'',risks:''};if(!text)return r;
+  const mS=text.match(/\*\*Status\*\*([\s\S]*?)(?=\*\*(?:Next Steps|Risks)\*\*|$)/);
+  const mNS=text.match(/\*\*Next Steps\*\*([\s\S]*?)(?=\*\*(?:Status|Risks)\*\*|$)/);
+  const mR=text.match(/\*\*Risks\*\*([\s\S]*?)(?=\*\*(?:Status|Next Steps)\*\*|$)/);
+  if(mS)r.status=mS[1].trim().replace(/^-\s*/gm,'').trim();
+  if(mNS)r.nextsteps=mNS[1].trim().replace(/^-\s*/gm,'').trim();
+  if(mR)r.risks=mR[1].trim().replace(/^-\s*/gm,'').trim();
+  return r;
+}
+function buildElabFromFields(){
+  const toBullets=t=>t.trim().split('\n').map(l=>l.trim()).filter(Boolean).map(l=>'- '+l).join('\n');
+  const s=document.getElementById('modal-elab-status').value.trim();
+  const ns=document.getElementById('modal-elab-nextsteps').value.trim();
+  const r=document.getElementById('modal-elab-risks').value.trim();
+  return('**Status**\n'+(s?toBullets(s):'- None')+'\n\n**Next Steps**\n'+(ns?toBullets(ns):'- None')+'\n\n**Risks**\n'+(r?toBullets(r):'- None')).trim();
+}
+async function resynthModal(){
+  const i=S.editRow;if(i==null)return;
+  const msg=document.getElementById('modal-resynth-msg'),btn=document.getElementById('modal-resynth-btn');
+  btn.disabled=true;msg.textContent='Synthesising…';
+  if(!S.edits[i])S.edits[i]={};
+  S.edits[i].notes=document.getElementById('modal-notes').value.trim();
+  try{
+    const[emails,events,teamUpdateRows]=await Promise.all([fetchEmails(),fetchCalendar(),fetchTeamUpdates()]);
+    // Build name→teamUpdate from a fresh RR fetch
+    const rrRaw=await sheetValues("'RR Projects'!A:N");
+    const freshRR=rrRaw.slice(1).filter(r=>r.some(c=>c));
+    const teamUpdateMap=new Map();
+    freshRR.forEach((row,idx)=>{
+      const name=String(row[C.PROJ]||'').trim().toLowerCase();
+      if(name)teamUpdateMap.set(name,teamUpdateRows[idx]||'');
+    });
+    const projName=String(S.rr[i]?.[C.PROJ]||'').trim();
+    const teamUpdate=teamUpdateMap.get(projName.toLowerCase())||'';
+    const result=await synthesizeElab(S.rr[i],emails,events,teamUpdate,S.edits[i]||{});
+    if(result){
+      // Re-find live index after async call
+      const liveIdx=S.rr.findIndex(r=>String(r[C.PROJ]||'').trim()===projName);
+      if(liveIdx!==-1){
+        delete S.edits[liveIdx]?.elab;
+        S.elab[liveIdx]=result;
+        const p=parseElabSections(result);
+        document.getElementById('modal-elab-status').value=p.status;
+        document.getElementById('modal-elab-nextsteps').value=p.nextsteps;
+        document.getElementById('modal-elab-risks').value=p.risks;
+        lsSave();msg.textContent='✓ Re-synthesised.';
+      }else{msg.textContent='Project no longer found in tracker.';}
+    }else{msg.textContent='Could not synthesise — check API key.';}
+  }catch(e){msg.textContent='Error: '+e.message;}
+  btn.disabled=false;
+}
+function saveModal(){
+  const i=S.editRow;if(i==null)return;
+  if(!S.edits[i])S.edits[i]={};
+  S.edits[i].type=document.getElementById('modal-type').value;
+  S.edits[i].cat=document.getElementById('modal-cat').value;
+  S.edits[i].pri=document.getElementById('modal-pri').value;
+  S.edits[i].pic=document.getElementById('modal-pic').value;
+  S.edits[i].sin=document.getElementById('modal-sin').value;
+  S.edits[i].status=document.getElementById('modal-status').value;
+  S.edits[i].task=document.getElementById('modal-task').value;
+  S.edits[i].notes=document.getElementById('modal-notes').value.trim();
+  const s=document.getElementById('modal-elab-status').value.trim();
+  const ns=document.getElementById('modal-elab-nextsteps').value.trim();
+  const r=document.getElementById('modal-elab-risks').value.trim();
+  if(s||ns||r)S.edits[i].elab=buildElabFromFields();else delete S.edits[i].elab;
+  lsSave();closeModal();buildFilters();renderRR();
+}
+function closeModal(){document.getElementById('edit-modal').style.display='none';S.editRow=null;}
+
+function switchTab(t){
+  S.tab=t;
+  ['rr','auto','scope','pic'].forEach(id=>{
+    document.getElementById('view-'+id).style.display=id===t?'':'none';
+    document.getElementById('tab-'+id).classList.toggle('active',id===t);
+  });
+  if(t==='pic')renderPic();
+}
+
+function renderPic(){
+  const wrap=document.getElementById('pic-table');if(!wrap)return;
+  const STATUSES=['Ongoing','To Start','Paused','Deprioritised','Closed'];
+  if(!S.rr.length){wrap.innerHTML='<div class="empty"><h3>No data</h3><p>Sync to load projects.</p></div>';return;}
+  // Build map: pic → status → [projName]
+  const map=new Map();
+  S.rr.forEach((row,i)=>{
+    const e=S.edits[i]||{};
+    const pic=(e.pic!==undefined?e.pic:String(row[C.PIC]||'')).trim()||'(Unassigned)';
+    const status=normalizeStatus(e.status!==undefined?e.status:row[C.STATUS]);
+    const proj=normProjName(String(row[C.PROJ]||'').trim());if(!proj)return;
+    if(!map.has(pic))map.set(pic,{});
+    const m=map.get(pic);
+    if(!m[status])m[status]=[];
+    m[status].push(proj);
+  });
+  const pics=[...map.keys()].sort((a,b)=>{if(a==='(Unassigned)')return 1;if(b==='(Unassigned)')return -1;return a.localeCompare(b);});
+  let rows=pics.map(pic=>{
+    const m=map.get(pic);
+    const total=STATUSES.reduce((s,st)=>s+(m[st]?.length||0),0);
+    return '<tr>'
+      +'<td style="font-weight:600;font-size:12.5px;white-space:nowrap;vertical-align:top;padding:8px 12px;">'+esc(pic)+'<br><span style="font-weight:400;font-size:10.5px;color:var(--text-muted)">'+total+' project'+(total!==1?'s':'')+'</span></td>'
+      +STATUSES.map(st=>{
+        const projs=m[st]||[];
+        if(!projs.length)return '<td style="vertical-align:top;padding:8px 12px;color:var(--text-muted);font-size:11.5px;">—</td>';
+        return '<td style="vertical-align:top;padding:8px 12px;"><ul style="margin:0;padding-left:14px;">'+projs.map(p=>'<li style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:1px;">'+esc(p)+'</li>').join('')+'</ul></td>';
+      }).join('')
+      +'</tr>';
+  }).join('');
+  wrap.innerHTML='<div class="generic-wrap"><table><thead><tr>'
+    +'<th style="min-width:110px">PIC</th>'
+    +STATUSES.map(s=>'<th><span class="badge '+statusClass(s)+'">'+esc(s)+'</span></th>').join('')
+    +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function showStep(id){document.querySelectorAll('.setup-step').forEach(s=>s.classList.remove('active'));document.getElementById(id)?.classList.add('active');}
+function saveKeys(){
+  const cid=document.getElementById('inp-cid')?.value.trim();
+  const csec=document.getElementById('inp-csec')?.value.trim();
+  const akey=document.getElementById('inp-akey')?.value.trim();
+  if(!cid||!csec||!akey){alert('Please fill in all three fields.');return;}
+  S.clientId=cid;S.clientSecret=csec;S.claudeKey=akey;lsSave();showStep('step-auth');
+}
+async function startAuth(){
+  const msg=document.getElementById('auth-msg');msg.textContent='Opening auth window…';
+  try{
+    const t=await openAuthPopup();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;
+    lsSave();msg.textContent='✓ Connected!';setTimeout(enterApp,700);
+  }catch(e){msg.textContent='Error: '+e.message;}
+}
+function openSetup(){
+  document.getElementById('inp-cid').value=S.clientId||'';
+  document.getElementById('inp-csec').value=S.clientSecret||'';
+  document.getElementById('inp-akey').value=S.claudeKey||'';
+  showStep('step-keys');document.getElementById('setup-overlay').style.display='';
+}
+function enterApp(){document.getElementById('setup-overlay').style.display='none';renderAll();if(!S.rr.length)doSync(false);}
+
+(function init(){
+  if(window.opener)return;
+  lsLoad();scheduleAutoSync();scheduleDriveSave();
+  document.getElementById('rr-filter-bar').addEventListener('click',function(e){
+    const p=e.target.closest('.pill[data-fk]');
+    if(p&&p.dataset.fk&&!p.dataset.fk.match(/^(task|ai)$/))toggleFilter(p.dataset.fk,p.dataset.val);
+  });
+  document.getElementById('rr-filter-bar-top').addEventListener('click',function(e){
+    const p=e.target.closest('.pill[data-fk]');
+    if(p&&p.dataset.fk)toggleFilter(p.dataset.fk,p.dataset.val);
+  });
+  document.getElementById('rr-table').addEventListener('change',function(e){
+    if(!e.target.classList.contains('task-chk'))return;
+    const ri=parseInt(e.target.dataset.row),li=parseInt(e.target.dataset.line);
+    if(isNaN(ri)||isNaN(li))return;
+    if(!S.edits[ri])S.edits[ri]={};
+    if(!S.edits[ri].checkedTasks)S.edits[ri].checkedTasks=[];
+    const arr=S.edits[ri].checkedTasks,pos=arr.indexOf(li);
+    if(pos>=0)arr.splice(pos,1);else arr.push(li);
+    lsSave();
+    const label=e.target.closest('.task-chk-row');if(label)label.classList.toggle('done',e.target.checked);
+  });
+  if(!S.clientId||!S.clientSecret||!S.claudeKey){
+    document.getElementById('setup-overlay').style.display='';showStep('step-keys');return;
+  }
+  if(S.rr.length)renderAll();
+  if(tokenValid()){document.getElementById('setup-overlay').style.display='none';}
+  else{
+    document.getElementById('inp-cid').value=S.clientId;
+    document.getElementById('inp-csec').value=S.clientSecret;
+    document.getElementById('inp-akey').value=S.claudeKey;
+    showStep('step-auth');document.getElementById('setup-overlay').style.display='';
+  }
+})();
+</script>
+</body>
+</html>
