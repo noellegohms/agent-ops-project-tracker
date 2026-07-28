@@ -406,7 +406,7 @@ function dbg(msg,cls){
 
 const SHEET_ID='14egvvWfjGO7fzea_so_MYfUTp7Mrs8Vf3R40xdcf644'; // kept for Auto/Scope tabs
 const SOURCE_SHEET_ID='1C51vA2ciAWpLZQ_mjkqbfNWmTYROkFUH6Yts23jdkfQ';
-const SOURCE_SHEET_GID=2063595430;
+const SOURCE_TAB_NAME='RR Projects';
 const SC={PROJ:2,LEAD:3,REG_PIC:4,STATUS_REMARKS:11,WEEKLY:22};
 const REG_RR_PICS=new Set(['mark','seth','akshit','le yu','vidya','cherie']);
 const C={TYPE:0,CAT:1,PROJ:2,PRI:3,PIC:4,SIN:5,STATUS:6,ELAB:7,TEAM_UPDATE:8,AI:10,TASK:11,DONE:12};
@@ -559,14 +559,14 @@ async function sheetValues(range,sheetId){
 async function fetchSourceSheet(){
   try{
     const meta=await gfetch('https://sheets.googleapis.com/v4/spreadsheets/'+SOURCE_SHEET_ID);
-    const sheetMeta=(meta.sheets||[]).find(s=>s.properties.sheetId===SOURCE_SHEET_GID);
-    const tabName=sheetMeta?.properties.title;
-    if(!tabName){
-      const available=(meta.sheets||[]).map(s=>'"'+s.properties.title+'" (gid:'+s.properties.sheetId+')').join(', ');
-      addLog('Source sheet: tab gid '+SOURCE_SHEET_GID+' not found. Available: '+available,'err');
+    const sheetMeta=(meta.sheets||[]).find(s=>s.properties.title===SOURCE_TAB_NAME);
+    if(!sheetMeta){
+      const available=(meta.sheets||[]).map(s=>'"'+s.properties.title+'"').join(', ');
+      addLog('Source sheet: tab "'+SOURCE_TAB_NAME+'" not found. Available: '+available,'err');
       return[];
     }
-    addLog('Source sheet: tab="'+tabName+'"','info');
+    const tabName=sheetMeta.properties.title;
+    addLog('Source sheet: tab="'+tabName+'" (gid:'+sheetMeta.properties.sheetId+')','info');
     const rows=await sheetValues("'"+tabName+"'!A:W",SOURCE_SHEET_ID);
     const dataRows=rows.slice(1).filter(r=>r.some(c=>c));
     addLog('Source sheet: '+dataRows.length+' non-empty data rows','info');
