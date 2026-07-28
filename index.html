@@ -1436,8 +1436,8 @@ function enterApp(){document.getElementById('setup-overlay').style.display='none
     const toSeed=['WFM Scope Automation','DMS Chat Message Type Displayed','L3 Headcount Reduction Initiatives','RR Handling for Stuck WMS Return Inbound Orders'];
     let changed=false;
     for(const name of toSeed){if(!S.rr.some(r=>String(r[C.PROJ]||'').trim()===name)){const row=Array(13).fill('');row[C.PROJ]=name;S.rr.push(row);changed=true;}}
-    if(!S.extraMappings['DMS Features']){S.extraMappings['DMS Features']=['DMS Requests (Adhoc)'];changed=true;}
-    if(!S.extraMappings['L3 Headcount Reduction Initiatives']){S.extraMappings['L3 Headcount Reduction Initiatives']=['L3 agent operational efficiency: - Demand - Automation - Productivity'];changed=true;}
+    const sysMaps={'DMS Features':['DMS Requests (Adhoc)'],'L3 Headcount Reduction Initiatives':['L3 agent operational efficiency: - Demand - Automation - Productivity']};
+    for(const[k,v]of Object.entries(sysMaps)){if(JSON.stringify(S.extraMappings[k])!==JSON.stringify(v)){S.extraMappings[k]=v;changed=true;}}
     if(changed)lsSave();
   })();
   scheduleAutoSync();scheduleDriveSave();
