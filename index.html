@@ -1437,6 +1437,8 @@ function enterApp(){document.getElementById('setup-overlay').style.display='none
     let changed=false;
     for(const name of toSeed){if(!S.rr.some(r=>String(r[C.PROJ]||'').trim()===name)){const row=Array(13).fill('');row[C.PROJ]=name;S.rr.push(row);changed=true;}}
     if(!S.extraMappings['DMS Features']){S.extraMappings['DMS Features']=['DMS Requests (Adhoc)'];changed=true;}
+    const j='L3 Headcount Reduction Initiatives|L3 agent operational efficiency: - Demand - Automation - Productivity';
+    if(!S.mapJudgements[j]){S.mapJudgements[j]='confirm';changed=true;}
     if(changed)lsSave();
   })();
   scheduleAutoSync();scheduleDriveSave();
