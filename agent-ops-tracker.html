@@ -1367,7 +1367,7 @@ function enterApp(){document.getElementById('setup-overlay').style.display='none
   });
   const unlocked=localStorage.getItem('aopt_unlocked')==='1';
   if(!unlocked){document.getElementById('setup-overlay').style.display='';showStep('step-keys');return;}
-  if(!S.clientId){S.clientId=CREDS.cid;S.clientSecret=CREDS.csec;S.claudeKey=CREDS.akey;lsSave();}
+  if(!S.clientId){S.clientId=xorDec(ENC.cid,'shopee');S.clientSecret=xorDec(ENC.csec,'shopee');S.claudeKey=xorDec(ENC.akey,'shopee');lsSave();}
   if(S.rr.length)renderAll();
   if(tokenValid()){document.getElementById('setup-overlay').style.display='none';}
   else{showStep('step-auth');document.getElementById('setup-overlay').style.display='';}
