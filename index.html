@@ -81,9 +81,9 @@ thead th{padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-tr
 tbody tr{border-bottom:1px solid var(--border-light);}tbody tr:last-child{border-bottom:none;}tbody tr:hover{background:#faf9f7;}
 td{padding:9px 12px;vertical-align:top;}
 .c-proj{width:155px;min-width:135px;}.c-pri{width:38px;text-align:center;}
-.c-pic{width:80px;}.c-sin{width:80px;}.c-status{width:88px;}
+.c-pic{width:55px;}.c-sin{width:80px;}.c-status{width:88px;}
 .c-ela{min-width:439px;max-width:619px;width:499px;}
-.c-task{min-width:67px;max-width:101px;}
+.c-task{min-width:130px;max-width:180px;}
 .c-ai{width:72px;}.c-act{width:34px;text-align:center;}
 .proj-name{font-weight:500;font-size:12.5px;word-break:break-word;margin-bottom:3px;}
 .proj-labels{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;}
@@ -1072,7 +1072,7 @@ function renderRR(){
       +'<th class="c-proj">Project</th><th class="c-pri">P</th><th class="c-pic">PIC</th>'
       +'<th class="c-sin">Stand-in</th><th class="c-status">Status</th>'
       +'<th class="c-ela">Status Elaboration</th><th class="c-task">Noelle\'s Task</th>'
-      +'<th class="c-ai">AI Pot.</th><th style="min-width:140px;font-size:10px">Sheet Match</th><th class="c-act"></th>'
+      +'<th class="c-ai">AI Pot.</th><th style="min-width:80px;max-width:100px;font-size:10px">Sheet Match</th><th class="c-act"></th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table>';
   }catch(e){dbg('renderRR: '+e.message,'err');}
 }
