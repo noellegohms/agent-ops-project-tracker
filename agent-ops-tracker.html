@@ -399,7 +399,10 @@ function dbg(msg,cls){
   }
 })();
 
-const SHEET_ID='14egvvWfjGO7fzea_so_MYfUTp7Mrs8Vf3R40xdcf644';
+const SHEET_ID='14egvvWfjGO7fzea_so_MYfUTp7Mrs8Vf3R40xdcf644'; // kept for Auto/Scope tabs
+const SOURCE_SHEET_ID='1DtOTGL9NScuYx5vrlrR4yIqAZMld10tYhkMwWdN9tBY';
+const SOURCE_SHEET_GID=1401481391;
+const SC={PROJ:2,LEAD:3,STATUS_REMARKS:11,WEEKLY:22};
 const C={TYPE:0,CAT:1,PROJ:2,PRI:3,PIC:4,SIN:5,STATUS:6,ELAB:7,TEAM_UPDATE:8,AI:10,TASK:11,DONE:12};
 const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILE_NAME='aopt-backup.json';
@@ -431,6 +434,7 @@ const S={
   filterTask:false,filterAi:false,
   activeF:{status:new Set(),pri:new Set(),pic:new Set(),type:new Set(),cat:new Set()},
   _pkceVerifier:null,
+  sourceRows:[],directMatches:{},uncertainMatches:[],unmappedSource:[],mapJudgements:{},
 };
 
 // Stale modal promise resolver — set by showStaleModal, called by option buttons
@@ -446,6 +450,8 @@ function lsSave(){
       rr:S.rr,auto:S.auto,scope:S.scope,autoLocal:S.autoLocal,
       edits:S.edits,elab:S.elab,autoEdits:S.autoEdits,autoDeleted:S.autoDeleted,
       scopeEdits:S.scopeEdits,lastSync:S.lastSync,driveFileId:S.driveFileId||null,
+      sourceRows:S.sourceRows,directMatches:S.directMatches,uncertainMatches:S.uncertainMatches,
+      unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,
     }));
   }catch(e){dbg('lsSave: '+e.message,'err');}
 }
@@ -472,6 +478,11 @@ function lsLoad(){
     if(d.scopeEdits)S.scopeEdits=d.scopeEdits||{};
     if(d.lastSync)S.lastSync=d.lastSync;
     if(d.driveFileId)S.driveFileId=d.driveFileId;
+    if(d.sourceRows)S.sourceRows=d.sourceRows;
+    if(d.directMatches)S.directMatches=d.directMatches;
+    if(d.uncertainMatches)S.uncertainMatches=d.uncertainMatches;
+    if(d.unmappedSource)S.unmappedSource=d.unmappedSource;
+    if(d.mapJudgements)S.mapJudgements=d.mapJudgements;
   }catch(e){dbg('lsLoad: '+e.message,'err');}
 }
 
@@ -532,16 +543,59 @@ async function gfetch(url){
   if(!r.ok)throw new Error('HTTP '+r.status+': '+r.url);
   return r.json();
 }
-async function sheetValues(range){
-  const d=await gfetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(range));
+async function sheetValues(range,sheetId){
+  const id=sheetId||SHEET_ID;
+  const d=await gfetch('https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values/'+encodeURIComponent(range));
   return d.values||[];
 }
 
-async function fetchTeamUpdates(){
+async function fetchSourceSheet(){
   try{
-    const rows=await sheetValues("'RR Projects'!I:I");
-    return rows.slice(1).map(r=>r[0]||'');
-  }catch(e){addLog('Team Update re-fetch: '+e.message,'err');return[];}
+    const meta=await gfetch('https://sheets.googleapis.com/v4/spreadsheets/'+SOURCE_SHEET_ID);
+    const sheetMeta=(meta.sheets||[]).find(s=>s.properties.sheetId===SOURCE_SHEET_GID);
+    const tabName=sheetMeta?.properties.title;
+    if(!tabName){addLog('Source sheet: tab not found for gid '+SOURCE_SHEET_GID,'err');return[];}
+    const rows=await sheetValues("'"+tabName+"'!A:W",SOURCE_SHEET_ID);
+    return rows.slice(1)
+      .filter(r=>(r[SC.LEAD]||'').trim().toLowerCase()==='noelle')
+      .map(r=>({projName:(r[SC.PROJ]||'').trim(),colL:(r[SC.STATUS_REMARKS]||'').trim(),colW:(r[SC.WEEKLY]||'').trim()}))
+      .filter(r=>r.projName);
+  }catch(e){addLog('Source sheet: '+e.message,'err');return[];}
+}
+
+function normForMatch(s){return String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim();}
+function wordOverlap(a,b){
+  const wa=new Set(normForMatch(a).split(' ').filter(w=>w.length>2));
+  const wb=new Set(normForMatch(b).split(' ').filter(w=>w.length>2));
+  if(!wa.size||!wb.size)return 0;
+  const inter=[...wa].filter(w=>wb.has(w)).length;
+  return inter/Math.max(wa.size,wb.size);
+}
+
+function matchSourceToTracker(sourceRows){
+  const directMatches={},uncertain=[],unmapped=[],anomalies=[];
+  const usedTrackerIdxs=new Set();
+  for(const srcRow of sourceRows){
+    let bestIdx=-1,bestScore=0;
+    for(let i=0;i<S.rr.length;i++){
+      const tName=String(S.rr[i][C.PROJ]||'').trim();
+      const key=tName+'|'+srcRow.projName;
+      if(S.mapJudgements[key]==='confirm'){bestIdx=i;bestScore=2;break;}
+      if(S.mapJudgements[key]==='reject')continue;
+      if(tName.toLowerCase()===srcRow.projName.toLowerCase()){bestIdx=i;bestScore=1;break;}
+      const sc=wordOverlap(tName,srcRow.projName);
+      if(sc>bestScore){bestScore=sc;bestIdx=i;}
+    }
+    if(bestScore>=1&&bestIdx!==-1){
+      if(usedTrackerIdxs.has(bestIdx)){anomalies.push({srcName:srcRow.projName,trackerName:String(S.rr[bestIdx][C.PROJ]||'').trim()});}
+      else{directMatches[bestIdx]=srcRow;usedTrackerIdxs.add(bestIdx);}
+    }else if(bestScore>=0.35&&bestIdx!==-1){
+      uncertain.push({trackerIdx:bestIdx,trackerName:String(S.rr[bestIdx][C.PROJ]||'').trim(),srcRow});
+    }else{
+      unmapped.push(srcRow.projName);
+    }
+  }
+  return{directMatches,uncertain,unmapped,anomalies};
 }
 
 function decodeB64(s){try{return decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));}catch(e){return '';}}
@@ -613,24 +667,24 @@ function matchCtx(name,emails,events){
 // ── AI Synthesis ──────────────────────────────────────────────────────────────
 // Returns the generated text (or null). Does NOT store — caller is responsible
 // for re-finding the live index and storing after the async call completes.
-async function synthesizeElab(row,emails,events,teamUpdate,edits){
+async function synthesizeElab(row,emails,events,colL,colW,edits){
   try{
     const notes=(edits?.notes||'').trim();
+    const colLt=String(colL||'').trim(),colWt=String(colW||'').trim();
     const pri=String((edits?.pri!==undefined?edits.pri:row[C.PRI])||'');
     const pic=String((edits?.pic!==undefined?edits.pic:row[C.PIC])||'');
     const sin=String((edits?.sin!==undefined?edits.sin:row[C.SIN])||'');
     const status=String((edits?.status!==undefined?edits.status:row[C.STATUS])||'');
-    const tu=String(teamUpdate||'').trim();
     const{filteredEmails,filteredEvents}=matchCtx(row[C.PROJ]||'',emails,events);
-    const hasSignals=tu||filteredEmails.length||filteredEvents.length||notes;
-    if(!hasSignals&&!row[C.ELAB]&&!status)return null;
+    const hasSignals=colWt||colLt||filteredEmails.length||filteredEvents.length||notes;
+    if(!hasSignals&&!status)return null;
     let ctx='Project: '+(row[C.PROJ]||'');
     if(pri)ctx+='\nPriority: '+pri;
     if(pic)ctx+='\nPIC: '+pic;
     if(sin)ctx+='\nStand-in: '+sin;
     if(status)ctx+='\nStatus: '+normalizeStatus(status);
-    if(tu)ctx+='\n\nTeam Update (Col I):\n'+tu;
-    if(row[C.ELAB])ctx+='\n\nExisting elaboration:\n'+row[C.ELAB];
+    if(colWt)ctx+='\n\nWeekly Update (most recent — treat as primary source):\n'+colWt;
+    if(colLt)ctx+='\n\nStatus Remarks (use only if Weekly Update is absent or incomplete):\n'+colLt;
     if(notes)ctx+='\n\nAdditional context (manual):\n'+notes;
     if(filteredEmails.length)ctx+='\n\nEmail digest:\n'+filteredEmails.map(em=>'--- '+em.subject+' ---\n'+em.body).join('\n\n');
     if(filteredEvents.length)ctx+='\n\nCalendar events:\n'+filteredEvents.map(ev=>'- '+ev.summary+' ('+ev.start+')').join('\n');
@@ -683,54 +737,29 @@ async function doSync(manual){
   if(manual)document.getElementById('log-panel').style.display='';
   S.log=[];
   try{
-    // ── Fetch RR Projects ──────────────────────────────────────────────────
-    addLog('Fetching RR Projects…','info');
-    const rrRaw=await sheetValues("'RR Projects'!A:N");
-    const freshRR=rrRaw.slice(1).filter(r=>r.some(c=>c));
-    const freshNames=new Set(freshRR.map(r=>String(r[C.PROJ]||'').trim().toLowerCase()));
+    // ── Fetch Source Sheet ─────────────────────────────────────────────────
+    addLog('Fetching source sheet…','info');
+    const sourceRows=await fetchSourceSheet();
+    addLog(sourceRows.length+' row(s) for Noelle in source sheet','ok');
+    S.sourceRows=sourceRows;
 
-    // Set of names to skip in synthesis (populated below based on user choice)
-    let skipSynthNames=new Set();
+    const{directMatches,uncertain,unmapped,anomalies}=matchSourceToTracker(sourceRows);
+    S.directMatches=directMatches;
+    S.uncertainMatches=uncertain;
+    S.unmappedSource=unmapped;
 
-    if(!S.rr.length){
-      // First load
-      S.rr=freshRR;
-      addLog(S.rr.length+' RR rows loaded','ok');
-    }else{
-      // Append new projects
-      const existingNames=new Set(S.rr.map(r=>String(r[C.PROJ]||'').trim().toLowerCase()));
-      const newRows=freshRR.filter(row=>{
-        const key=String(row[C.PROJ]||'').trim().toLowerCase();
-        return key&&!existingNames.has(key);
-      });
-      if(newRows.length){
-        S.rr.push(...newRows);
-        addLog(newRows.length+' new project(s) appended · '+S.rr.length+' total','ok');
-      }else{
-        addLog(S.rr.length+' RR rows (no new projects)','info');
-      }
-
-      // Detect stale projects (in tracker but not in sheet)
-      const stale=S.rr
-        .map((r,i)=>({name:String(r[C.PROJ]||'').trim(),idx:i}))
-        .filter(({name})=>name&&!freshNames.has(name.toLowerCase()));
-
-      if(stale.length){
-        addLog(stale.length+' project(s) no longer in sheet — awaiting your decision','info');
-        renderAll(); // show current state before blocking on modal
-        const choice=await showStaleModal(stale);
-        if(choice==='remove-all'){
-          // Sort descending so splices don't shift earlier indices
-          [...stale].sort((a,b)=>b.idx-a.idx).forEach(({idx})=>deleteRow(idx));
-          addLog(stale.length+' stale project(s) removed','ok');
-          buildFilters();renderRR();
-        }else{
-          // handle-individually: skip these in synthesis to avoid wasting tokens
-          skipSynthNames=new Set(stale.map(({name})=>name.toLowerCase()));
-          addLog('Stale projects kept — skipping synthesis for them','info');
-        }
-      }
+    if(anomalies.length){
+      addLog('⚠ 1:1 mapping violation(s):','err');
+      anomalies.forEach(a=>addLog('  "'+a.srcName+'" → "'+a.trackerName+'" already mapped to another source row','err'));
     }
+    if(unmapped.length){
+      addLog('Source project(s) with no tracker match — please prescribe treatment:','info');
+      unmapped.forEach(n=>addLog('  · '+n,'info'));
+    }
+    if(uncertain.length){
+      addLog(uncertain.length+' uncertain match(es) — see tracker table for Confirm/Reject','info');
+    }
+    addLog(Object.keys(directMatches).length+' direct match(es)','ok');
 
     // ── Fetch Auto & Scope (first load only) ──────────────────────────────
     if(!S.auto.length){
@@ -754,45 +783,35 @@ async function doSync(manual){
     addLog(emails.length+' email(s) · '+events.length+' calendar events','info');
 
     if(S.claudeKey){
-      addLog('Re-fetching Col I (Team Update) for synthesis…','info');
-      const teamUpdateRows=await fetchTeamUpdates();
-
-      // Build name→teamUpdate map from fresh sheet data
-      const teamUpdateMap=new Map();
-      freshRR.forEach((row,i)=>{
-        const name=String(row[C.PROJ]||'').trim().toLowerCase();
-        if(name)teamUpdateMap.set(name,teamUpdateRows[i]||'');
+      // Build trackerProjName → srcRow map from confirmed + direct matches
+      const projToSrc=new Map();
+      Object.entries(directMatches).forEach(([idx,srcRow])=>{
+        const name=String(S.rr[parseInt(idx)]?.[C.PROJ]||'').trim();
+        if(name)projToSrc.set(name,srcRow);
       });
-      addLog('Col I fetched ('+teamUpdateRows.filter(Boolean).length+' non-empty)','ok');
+      // Also pick up judgement-confirmed fuzzy matches
+      S.rr.forEach((row,i)=>{
+        const tName=String(row[C.PROJ]||'').trim();
+        if(projToSrc.has(tName))return;
+        for(const srcRow of sourceRows){
+          if(S.mapJudgements[tName+'|'+srcRow.projName]==='confirm'){
+            projToSrc.set(tName,srcRow);break;
+          }
+        }
+      });
 
-      // Snapshot synthesis targets by project name (not index) after stale resolution.
-      // Index is re-looked up live before storing to handle any mid-loop deletions.
-      const synthTargets=S.rr
-        .map(r=>String(r[C.PROJ]||'').trim())
-        .filter(name=>name&&!skipSynthNames.has(name.toLowerCase()));
-
+      const synthTargets=S.rr.map(r=>String(r[C.PROJ]||'').trim()).filter(Boolean);
       let n=0;
       for(const projName of synthTargets){
-        // Re-find live index — may have shifted if user deleted a project via edit modal
         const liveIdx=S.rr.findIndex(r=>String(r[C.PROJ]||'').trim()===projName);
-        if(liveIdx===-1)continue; // deleted mid-loop, skip
-
+        if(liveIdx===-1)continue;
         const row=S.rr[liveIdx];
         const edits=S.edits[liveIdx]||{};
-
-        // Always re-synthesise on every sync (manual or auto).
-
-        const teamUpdate=teamUpdateMap.get(projName.toLowerCase())||'';
-        const result=await synthesizeElab(row,emails,events,teamUpdate,edits);
-
+        const srcRow=projToSrc.get(projName)||{colL:'',colW:''};
+        const result=await synthesizeElab(row,emails,events,srcRow.colL,srcRow.colW,edits);
         if(result){
-          // Re-find index again after async Claude call — user may have deleted mid-call
           const storeIdx=S.rr.findIndex(r=>String(r[C.PROJ]||'').trim()===projName);
-          if(storeIdx!==-1){
-            S.elab[storeIdx]=result;
-            n++;
-            if(n%5===0)renderRR();
-          }
+          if(storeIdx!==-1){S.elab[storeIdx]=result;n++;if(n%5===0)renderRR();}
         }
       }
       addLog('Claude: synthesised '+n,'ok');
@@ -1031,6 +1050,7 @@ function renderRR(){
           +'<td class="c-ela">'+elabHtml+'</td>'
           +'<td class="c-task">'+renderTaskHtml(task,i)+'</td>'
           +'<td class="c-ai"><span style="font-size:11.5px;color:var(--text-muted)">'+esc(ai)+'</span></td>'
+          +renderSheetMatchCell(i)
           +'<td class="c-act"><button class="edit-btn" onclick="openModal('+i+')" title="Edit">✎</button></td>'
           +'</tr>';
       }catch(rowErr){
@@ -1042,7 +1062,7 @@ function renderRR(){
       +'<th class="c-proj">Project</th><th class="c-pri">P</th><th class="c-pic">PIC</th>'
       +'<th class="c-sin">Stand-in</th><th class="c-status">Status</th>'
       +'<th class="c-ela">Status Elaboration</th><th class="c-task">Noelle\'s Task</th>'
-      +'<th class="c-ai">AI Pot.</th><th class="c-act"></th>'
+      +'<th class="c-ai">AI Pot.</th><th style="min-width:140px;font-size:10px">Sheet Match</th><th class="c-act"></th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table>';
   }catch(e){dbg('renderRR: '+e.message,'err');}
 }
@@ -1182,18 +1202,16 @@ async function resynthModal(){
   if(!S.edits[i])S.edits[i]={};
   S.edits[i].notes=document.getElementById('modal-notes').value.trim();
   try{
-    const[emails,events,teamUpdateRows]=await Promise.all([fetchEmails(),fetchCalendar(),fetchTeamUpdates()]);
-    // Build name→teamUpdate from a fresh RR fetch
-    const rrRaw=await sheetValues("'RR Projects'!A:N");
-    const freshRR=rrRaw.slice(1).filter(r=>r.some(c=>c));
-    const teamUpdateMap=new Map();
-    freshRR.forEach((row,idx)=>{
-      const name=String(row[C.PROJ]||'').trim().toLowerCase();
-      if(name)teamUpdateMap.set(name,teamUpdateRows[idx]||'');
-    });
+    const[emails,events]=await Promise.all([fetchEmails(),fetchCalendar()]);
     const projName=String(S.rr[i]?.[C.PROJ]||'').trim();
-    const teamUpdate=teamUpdateMap.get(projName.toLowerCase())||'';
-    const result=await synthesizeElab(S.rr[i],emails,events,teamUpdate,S.edits[i]||{});
+    // Find source row for this project
+    let srcRow=S.directMatches[i]||null;
+    if(!srcRow){
+      for(const sr of S.sourceRows){
+        if(S.mapJudgements[projName+'|'+sr.projName]==='confirm'){srcRow=sr;break;}
+      }
+    }
+    const result=await synthesizeElab(S.rr[i],emails,events,srcRow?.colL||'',srcRow?.colW||'',S.edits[i]||{});
     if(result){
       // Re-find live index after async call
       const liveIdx=S.rr.findIndex(r=>String(r[C.PROJ]||'').trim()===projName);
@@ -1271,6 +1289,35 @@ function renderPic(){
     +'<th style="min-width:110px">PIC</th>'
     +STATUSES.map(s=>'<th><span class="badge '+statusClass(s)+'">'+esc(s)+'</span></th>').join('')
     +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function renderSheetMatchCell(trackerIdx){
+  // Check if there's an uncertain match pending for this tracker project
+  const m=S.uncertainMatches.find(u=>u.trackerIdx===trackerIdx);
+  if(!m)return '<td></td>';
+  const srcName=esc(m.srcRow.projName);
+  return '<td style="padding:6px 8px;vertical-align:top;">'
+    +'<div style="font-size:11px;color:var(--text-secondary);margin-bottom:5px;word-break:break-word;">'+srcName+'</div>'
+    +'<div style="display:flex;gap:4px;">'
+    +'<button class="btn btn-xs btn-primary" onclick="confirmMapping('+trackerIdx+',\''+m.srcRow.projName.replace(/'/g,"\\'")+'\')" title="Same project">✓ Confirm</button>'
+    +'<button class="btn btn-xs btn-danger" onclick="rejectMapping('+trackerIdx+',\''+m.srcRow.projName.replace(/'/g,"\\'")+'\')" title="Different project">✕ Reject</button>'
+    +'</div></td>';
+}
+
+function confirmMapping(trackerIdx,srcName){
+  const tName=String(S.rr[trackerIdx]?.[C.PROJ]||'').trim();
+  S.mapJudgements[tName+'|'+srcName]='confirm';
+  S.uncertainMatches=S.uncertainMatches.filter(m=>!(m.trackerIdx===trackerIdx&&m.srcRow.projName===srcName));
+  const srcRow=S.sourceRows.find(r=>r.projName===srcName);
+  if(srcRow)S.directMatches[trackerIdx]=srcRow;
+  lsSave();renderRR();
+}
+function rejectMapping(trackerIdx,srcName){
+  const tName=String(S.rr[trackerIdx]?.[C.PROJ]||'').trim();
+  S.mapJudgements[tName+'|'+srcName]='reject';
+  S.uncertainMatches=S.uncertainMatches.filter(m=>!(m.trackerIdx===trackerIdx&&m.srcRow.projName===srcName));
+  S.unmappedSource.push(srcName);
+  lsSave();renderRR();
 }
 
 function showStep(id){document.querySelectorAll('.setup-step').forEach(s=>s.classList.remove('active'));document.getElementById(id)?.classList.add('active');}
