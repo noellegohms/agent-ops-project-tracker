@@ -554,10 +554,20 @@ async function fetchSourceSheet(){
     const meta=await gfetch('https://sheets.googleapis.com/v4/spreadsheets/'+SOURCE_SHEET_ID);
     const sheetMeta=(meta.sheets||[]).find(s=>s.properties.sheetId===SOURCE_SHEET_GID);
     const tabName=sheetMeta?.properties.title;
-    if(!tabName){addLog('Source sheet: tab not found for gid '+SOURCE_SHEET_GID,'err');return[];}
+    if(!tabName){
+      const available=(meta.sheets||[]).map(s=>'"'+s.properties.title+'" (gid:'+s.properties.sheetId+')').join(', ');
+      addLog('Source sheet: tab gid '+SOURCE_SHEET_GID+' not found. Available: '+available,'err');
+      return[];
+    }
+    addLog('Source sheet: tab="'+tabName+'"','info');
     const rows=await sheetValues("'"+tabName+"'!A:W",SOURCE_SHEET_ID);
-    return rows.slice(1)
-      .filter(r=>(r[SC.LEAD]||'').trim().toLowerCase()==='noelle')
+    const dataRows=rows.slice(1).filter(r=>r.some(c=>c));
+    addLog('Source sheet: '+dataRows.length+' non-empty data rows','info');
+    const sample=dataRows.slice(0,3).map(r=>'C='+JSON.stringify(r[SC.PROJ]||'')+' D='+JSON.stringify(r[SC.LEAD]||'')).join(' | ');
+    if(sample)addLog('Sample rows: '+sample,'info');
+    const noelleRows=dataRows.filter(r=>(r[SC.LEAD]||'').trim().toLowerCase()==='noelle');
+    addLog(noelleRows.length+' rows where ColD="Noelle"','info');
+    return noelleRows
       .map(r=>({projName:(r[SC.PROJ]||'').trim(),colL:(r[SC.STATUS_REMARKS]||'').trim(),colW:(r[SC.WEEKLY]||'').trim()}))
       .filter(r=>r.projName);
   }catch(e){addLog('Source sheet: '+e.message,'err');return[];}
