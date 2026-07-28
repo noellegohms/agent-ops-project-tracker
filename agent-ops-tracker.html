@@ -402,7 +402,8 @@ function dbg(msg,cls){
 const SHEET_ID='14egvvWfjGO7fzea_so_MYfUTp7Mrs8Vf3R40xdcf644'; // kept for Auto/Scope tabs
 const SOURCE_SHEET_ID='1C51vA2ciAWpLZQ_mjkqbfNWmTYROkFUH6Yts23jdkfQ';
 const SOURCE_SHEET_GID=1204224453;
-const SC={PROJ:2,LEAD:3,STATUS_REMARKS:11,WEEKLY:22};
+const SC={PROJ:2,LEAD:3,REG_PIC:4,STATUS_REMARKS:11,WEEKLY:22};
+const REG_RR_PICS=new Set(['mark','seth','akshit','le yu','vidya','cherie']);
 const C={TYPE:0,CAT:1,PROJ:2,PRI:3,PIC:4,SIN:5,STATUS:6,ELAB:7,TEAM_UPDATE:8,AI:10,TASK:11,DONE:12};
 const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILE_NAME='aopt-backup.json';
@@ -563,10 +564,14 @@ async function fetchSourceSheet(){
     const rows=await sheetValues("'"+tabName+"'!A:W",SOURCE_SHEET_ID);
     const dataRows=rows.slice(1).filter(r=>r.some(c=>c));
     addLog('Source sheet: '+dataRows.length+' non-empty data rows','info');
-    const sample=dataRows.slice(0,3).map(r=>'C='+JSON.stringify(r[SC.PROJ]||'')+' D='+JSON.stringify(r[SC.LEAD]||'')).join(' | ');
+    const sample=dataRows.slice(0,3).map(r=>'C='+JSON.stringify(r[SC.PROJ]||'')+' D='+JSON.stringify(r[SC.LEAD]||'')+' E='+JSON.stringify(r[SC.REG_PIC]||'')).join(' | ');
     if(sample)addLog('Sample rows: '+sample,'info');
-    const noelleRows=dataRows.filter(r=>(r[SC.LEAD]||'').trim().toLowerCase()==='noelle');
-    addLog(noelleRows.length+' rows where ColD="Noelle"','info');
+    const noelleRows=dataRows.filter(r=>{
+      const lead=(r[SC.LEAD]||'').trim().toLowerCase();
+      const regPic=(r[SC.REG_PIC]||'').trim().toLowerCase();
+      return lead==='noelle'&&REG_RR_PICS.has(regPic);
+    });
+    addLog(noelleRows.length+' rows where ColD="Noelle" + ColE in Reg RR PIC list','info');
     return noelleRows
       .map(r=>({projName:(r[SC.PROJ]||'').trim(),colL:(r[SC.STATUS_REMARKS]||'').trim(),colW:(r[SC.WEEKLY]||'').trim()}))
       .filter(r=>r.projName);
