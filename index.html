@@ -239,6 +239,7 @@ td{padding:9px 12px;vertical-align:top;}
           <span class="pill" id="pill-ai" onclick="toggleBoolFilter('ai',this)">Yes</span>
         </div>
         <div class="filter-right">
+          <button class="btn btn-secondary btn-sm" onclick="openModal(-1)">+ New project</button>
           <div class="search-wrap"><input class="search-input" id="rr-search" placeholder="Search…" oninput="renderRR()"></div>
           <span class="row-count" id="rr-count"></span>
         </div>
@@ -283,6 +284,10 @@ td{padding:9px 12px;vertical-align:top;}
     <h3 id="modal-title">Edit Row</h3>
     <div class="modal-sub" id="modal-sub"></div>
     <div class="modal-section-hdr">Project Info</div>
+    <div class="modal-field" id="modal-proj-field" style="display:none;">
+      <label class="modal-label">Project Name *</label>
+      <input class="modal-input" id="modal-proj" placeholder="Enter project name">
+    </div>
     <div class="modal-row">
       <div class="modal-field">
         <label class="modal-label">Type</label>
@@ -435,7 +440,7 @@ const S={
   filterTask:false,filterAi:false,
   activeF:{status:new Set(),pri:new Set(),pic:new Set(),type:new Set(),cat:new Set()},
   _pkceVerifier:null,
-  sourceRows:[],directMatches:{},uncertainMatches:[],unmappedSource:[],mapJudgements:{},
+  sourceRows:[],directMatches:{},uncertainMatches:[],unmappedSource:[],mapJudgements:{},extraMappings:{},
 };
 
 // Stale modal promise resolver — set by showStaleModal, called by option buttons
@@ -452,7 +457,7 @@ function lsSave(){
       edits:S.edits,elab:S.elab,autoEdits:S.autoEdits,autoDeleted:S.autoDeleted,
       scopeEdits:S.scopeEdits,lastSync:S.lastSync,driveFileId:S.driveFileId||null,
       sourceRows:S.sourceRows,directMatches:S.directMatches,uncertainMatches:S.uncertainMatches,
-      unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,
+      unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,extraMappings:S.extraMappings,
     }));
   }catch(e){dbg('lsSave: '+e.message,'err');}
 }
@@ -484,6 +489,7 @@ function lsLoad(){
     if(d.uncertainMatches)S.uncertainMatches=d.uncertainMatches;
     if(d.unmappedSource)S.unmappedSource=d.unmappedSource;
     if(d.mapJudgements)S.mapJudgements=d.mapJudgements;
+    if(d.extraMappings)S.extraMappings=d.extraMappings;
   }catch(e){dbg('lsLoad: '+e.message,'err');}
 }
 
@@ -590,7 +596,9 @@ function wordOverlap(a,b){
 function matchSourceToTracker(sourceRows){
   const directMatches={},uncertain=[],unmapped=[],anomalies=[];
   const usedTrackerIdxs=new Set();
+  const extraSrcNames=new Set(Object.values(S.extraMappings).flat());
   for(const srcRow of sourceRows){
+    if(extraSrcNames.has(srcRow.projName))continue; // handled via extraMappings
     let bestIdx=-1,bestScore=0;
     for(let i=0;i<S.rr.length;i++){
       const tName=String(S.rr[i][C.PROJ]||'').trim();
@@ -748,6 +756,7 @@ function deleteRow(i){
 }
 function deleteRowFromModal(){
   const i=S.editRow;if(i==null)return;
+  if(i===-1){closeModal();return;}
   const name=S.rr[i]?.[C.PROJ]||'this project';
   if(!confirm('Delete "'+name+'" from the tracker? This cannot be undone.'))return;
   deleteRow(i);
@@ -822,6 +831,17 @@ async function doSync(manual){
             projToSrc.set(tName,srcRow);break;
           }
         }
+      });
+      // Merge extra source data into primary (multi-source projects like DMS Features)
+      Object.entries(S.extraMappings).forEach(([tName,extraNames])=>{
+        const extraRows=extraNames.map(n=>sourceRows.find(r=>r.projName===n)).filter(Boolean);
+        if(!extraRows.length)return;
+        const primary=projToSrc.get(tName);
+        const allRows=primary?[primary,...extraRows]:extraRows;
+        projToSrc.set(tName,{projName:tName,
+          colL:allRows.map(r=>r.colL).filter(Boolean).join('\n\n---\n\n'),
+          colW:allRows.map(r=>r.colW).filter(Boolean).join('\n\n---\n\n'),
+        });
       });
 
       const synthTargets=S.rr.map(r=>String(r[C.PROJ]||'').trim()).filter(Boolean);
@@ -1180,7 +1200,22 @@ function renderAll(){
 }
 
 function openModal(rowIdx){
-  S.editRow=rowIdx;const row=S.rr[rowIdx];if(!row)return;
+  S.editRow=rowIdx;
+  const isNew=rowIdx===-1;
+  const pf=document.getElementById('modal-proj-field');
+  const rb=document.getElementById('modal-resynth-btn');
+  if(pf)pf.style.display=isNew?'':'none';
+  if(rb)rb.disabled=isNew;
+  if(isNew){
+    document.getElementById('modal-title').textContent='New Project';
+    document.getElementById('modal-sub').textContent='';
+    ['modal-proj','modal-type','modal-cat','modal-pri','modal-pic','modal-sin','modal-status','modal-task','modal-notes','modal-elab-status','modal-elab-nextsteps','modal-elab-risks'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    document.getElementById('modal-resynth-msg').textContent='';
+    document.getElementById('edit-modal').style.display='';
+    setTimeout(()=>document.getElementById('modal-proj')?.focus(),50);
+    return;
+  }
+  const row=S.rr[rowIdx];if(!row)return;
   const e=S.edits[rowIdx]||{};
   const effType=e.type!==undefined?e.type:row[C.TYPE]||'';
   const effCat=e.cat!==undefined?e.cat:row[C.CAT]||'';
@@ -1220,7 +1255,7 @@ function buildElabFromFields(){
   return('**Status**\n'+(s?toBullets(s):'- None')+'\n\n**Next Steps**\n'+(ns?toBullets(ns):'- None')+'\n\n**Risks**\n'+(r?toBullets(r):'- None')).trim();
 }
 async function resynthModal(){
-  const i=S.editRow;if(i==null)return;
+  const i=S.editRow;if(i==null||i===-1)return;
   const msg=document.getElementById('modal-resynth-msg'),btn=document.getElementById('modal-resynth-btn');
   btn.disabled=true;msg.textContent='Synthesising…';
   if(!S.edits[i])S.edits[i]={};
@@ -1256,6 +1291,29 @@ async function resynthModal(){
 }
 function saveModal(){
   const i=S.editRow;if(i==null)return;
+  if(i===-1){
+    const projName=(document.getElementById('modal-proj')?.value||'').trim();
+    if(!projName){alert('Project name is required.');return;}
+    const newRow=Array(13).fill('');
+    newRow[C.TYPE]=document.getElementById('modal-type').value;
+    newRow[C.CAT]=document.getElementById('modal-cat').value;
+    newRow[C.PROJ]=projName;
+    newRow[C.PRI]=document.getElementById('modal-pri').value;
+    newRow[C.PIC]=document.getElementById('modal-pic').value;
+    newRow[C.SIN]=document.getElementById('modal-sin').value;
+    newRow[C.STATUS]=document.getElementById('modal-status').value;
+    newRow[C.TASK]=document.getElementById('modal-task').value;
+    S.rr.push(newRow);
+    const ni=S.rr.length-1;S.edits[ni]={};
+    const _n=document.getElementById('modal-notes').value.trim();
+    if(_n){S.edits[ni].notes=_n;S.edits[ni].notesTs=Date.now();}
+    const s=document.getElementById('modal-elab-status').value.trim();
+    const ns=document.getElementById('modal-elab-nextsteps').value.trim();
+    const r=document.getElementById('modal-elab-risks').value.trim();
+    if(s||ns||r)S.edits[ni].elab=buildElabFromFields();
+    lsSave();closeModal();buildFilters();renderRR();
+    return;
+  }
   if(!S.edits[i])S.edits[i]={};
   S.edits[i].type=document.getElementById('modal-type').value;
   S.edits[i].cat=document.getElementById('modal-cat').value;
@@ -1373,7 +1431,15 @@ function enterApp(){document.getElementById('setup-overlay').style.display='none
 
 (function init(){
   if(window.opener)return;
-  lsLoad();scheduleAutoSync();scheduleDriveSave();
+  lsLoad();
+  (function seedData(){
+    const toSeed=['WFM Scope Automation','DMS Chat Message Type Displayed','L3 Headcount Reduction Initiatives','RR Handling for Stuck WMS Return Inbound Orders'];
+    let changed=false;
+    for(const name of toSeed){if(!S.rr.some(r=>String(r[C.PROJ]||'').trim()===name)){const row=Array(13).fill('');row[C.PROJ]=name;S.rr.push(row);changed=true;}}
+    if(!S.extraMappings['DMS Features']){S.extraMappings['DMS Features']=['DMS Requests (Adhoc)'];changed=true;}
+    if(changed)lsSave();
+  })();
+  scheduleAutoSync();scheduleDriveSave();
   document.getElementById('rr-filter-bar').addEventListener('click',function(e){
     const p=e.target.closest('.pill[data-fk]');
     if(p&&p.dataset.fk&&!p.dataset.fk.match(/^(task|ai)$/))toggleFilter(p.dataset.fk,p.dataset.val);
