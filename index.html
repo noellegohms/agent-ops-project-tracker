@@ -339,7 +339,7 @@ td{padding:9px 12px;vertical-align:top;}
     <div class="modal-section-hdr">Additional Context for AI Synthesis</div>
     <div class="modal-field">
       <textarea class="modal-textarea notes" id="modal-notes" placeholder="Add any extra context for Claude to use when generating Status Elaboration."></textarea>
-      <div class="notes-hint">Supplements (does not replace) emails, calendar data, and Team Update column.</div>
+      <div class="notes-hint">If saved after the last sync, overrides Weekly Update as the primary synthesis source. Otherwise, supplements it.</div>
     </div>
     <div class="modal-divider"></div>
     <div class="modal-section-hdr">Status Elaboration Override <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--text-muted)">(leave blank to let AI generate)</span></div>
@@ -680,6 +680,9 @@ function matchCtx(name,emails,events){
 async function synthesizeElab(row,emails,events,colL,colW,edits){
   try{
     const notes=(edits?.notes||'').trim();
+    const notesTs=edits?.notesTs||0;
+    const lastSyncTs=S.lastSync?new Date(S.lastSync).getTime():0;
+    const notesArePrimary=!!(notes&&notesTs&&notesTs>lastSyncTs);
     const colLt=String(colL||'').trim(),colWt=String(colW||'').trim();
     const pri=String((edits?.pri!==undefined?edits.pri:row[C.PRI])||'');
     const pic=String((edits?.pic!==undefined?edits.pic:row[C.PIC])||'');
@@ -693,9 +696,15 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
     if(pic)ctx+='\nPIC: '+pic;
     if(sin)ctx+='\nStand-in: '+sin;
     if(status)ctx+='\nStatus: '+normalizeStatus(status);
-    if(colWt)ctx+='\n\nWeekly Update (most recent — treat as primary source):\n'+colWt;
-    if(colLt)ctx+='\n\nStatus Remarks (use only if Weekly Update is absent or incomplete):\n'+colLt;
-    if(notes)ctx+='\n\nAdditional context (manual):\n'+notes;
+    if(notesArePrimary){
+      ctx+='\n\nAdditional Context (PRIMARY — entered after last sync, overrides Weekly Update):\n'+notes;
+      if(colWt)ctx+='\n\nWeekly Update (secondary — use only if primary context above is incomplete):\n'+colWt;
+      if(colLt)ctx+='\n\nStatus Remarks (tertiary — use only if sources above are absent):\n'+colLt;
+    }else{
+      if(colWt)ctx+='\n\nWeekly Update (most recent — treat as primary source):\n'+colWt;
+      if(colLt)ctx+='\n\nStatus Remarks (use only if Weekly Update is absent or incomplete):\n'+colLt;
+      if(notes)ctx+='\n\nAdditional context (supplementary):\n'+notes;
+    }
     if(filteredEmails.length)ctx+='\n\nEmail digest:\n'+filteredEmails.map(em=>'--- '+em.subject+' ---\n'+em.body).join('\n\n');
     if(filteredEvents.length)ctx+='\n\nCalendar events:\n'+filteredEvents.map(ev=>'- '+ev.summary+' ('+ev.start+')').join('\n');
     return await callClaude(ELAB_SYSTEM,ctx);
@@ -1210,7 +1219,9 @@ async function resynthModal(){
   const msg=document.getElementById('modal-resynth-msg'),btn=document.getElementById('modal-resynth-btn');
   btn.disabled=true;msg.textContent='Synthesising…';
   if(!S.edits[i])S.edits[i]={};
-  S.edits[i].notes=document.getElementById('modal-notes').value.trim();
+  const _rNotes=document.getElementById('modal-notes').value.trim();
+  if(_rNotes!==(S.edits[i].notes||'')){S.edits[i].notesTs=_rNotes?Date.now():null;}
+  S.edits[i].notes=_rNotes;
   try{
     const[emails,events]=await Promise.all([fetchEmails(),fetchCalendar()]);
     const projName=String(S.rr[i]?.[C.PROJ]||'').trim();
@@ -1248,7 +1259,9 @@ function saveModal(){
   S.edits[i].sin=document.getElementById('modal-sin').value;
   S.edits[i].status=document.getElementById('modal-status').value;
   S.edits[i].task=document.getElementById('modal-task').value;
-  S.edits[i].notes=document.getElementById('modal-notes').value.trim();
+  const _sNotes=document.getElementById('modal-notes').value.trim();
+  if(_sNotes!==(S.edits[i].notes||'')){S.edits[i].notesTs=_sNotes?Date.now():null;}
+  S.edits[i].notes=_sNotes;
   const s=document.getElementById('modal-elab-status').value.trim();
   const ns=document.getElementById('modal-elab-nextsteps').value.trim();
   const r=document.getElementById('modal-elab-risks').value.trim();
