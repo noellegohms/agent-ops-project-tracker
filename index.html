@@ -175,16 +175,10 @@ td{padding:9px 12px;vertical-align:top;}
     <h2>RR Agent Ops Project Tracker</h2>
     <p class="setup-desc">Connect your Google account and Anthropic API key to get started.</p>
     <div class="setup-step active" id="step-keys">
-      <label class="setup-label">Google Client ID</label>
-      <input class="setup-input" id="inp-cid" placeholder="xxx.apps.googleusercontent.com" autocomplete="off">
-      <div class="setup-hint">From Google Cloud Console → Credentials → Desktop app OAuth client</div>
-      <label class="setup-label">Google Client Secret</label>
-      <input class="setup-input" id="inp-csec" type="password" placeholder="GOCSPX-…" autocomplete="off">
-      <div class="setup-hint">Required for Desktop app token exchange</div>
-      <label class="setup-label">Anthropic API Key</label>
-      <input class="setup-input" id="inp-akey" type="password" placeholder="sk-ant-…" autocomplete="off">
-      <div class="setup-hint">From console.anthropic.com → API Keys</div>
-      <div class="setup-actions"><button class="btn btn-primary" onclick="saveKeys()">Continue →</button></div>
+      <label class="setup-label">Password</label>
+      <input class="setup-input" id="inp-pw" type="password" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')checkPassword()">
+      <div id="pw-msg" style="font-size:12px;color:#e8624b;margin-top:6px;min-height:18px;"></div>
+      <div class="setup-actions"><button class="btn btn-primary" onclick="checkPassword()">Unlock →</button></div>
     </div>
     <div class="setup-step" id="step-auth">
       <div class="info-box">Open this page via <strong>http://localhost:8080/agent-ops-tracker.html</strong></div>
@@ -411,6 +405,12 @@ const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly https://www.
 const DRIVE_FILE_NAME='aopt-backup.json';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
 const LS_KEY='aopt';
+const ENC={
+  cid: '415a5e415d57445d5e4950565e50061e0413125b1a1603081507191c5c114b0a01125d0019045c4910501b0d585e0415031b41170a0a14040a051600010b001e11001d1c41130a08',
+  csec:'34272c23353d5e0003433c144b11184648093e2d5b23330403061a4736320519232307',
+  akey:'000342110b115e091f1955565e0d184423092c2137253a3d1c2c29232b320211180a0e00093f3e453f343b5e1f5d00061c252c01563c44013b052a332b0f23320f0014512b3c3409162728271730401d4248513c0007033f502b0b5f190209091c59185d5217262c24072424'
+};
+function xorDec(hex,key){return hex.match(/.{2}/g).map((b,i)=>String.fromCharCode(parseInt(b,16)^key.charCodeAt(i%key.length))).join('');}
 const AUTO_COLS=['Workflow','Target Outcome','Architecture','PIC','Timeline'];
 const ELAB_SYSTEM=`You are a concise project status assistant for Shopee's Returns & Refund team.
 Output EXACTLY this structure — no exceptions:
@@ -1274,12 +1274,14 @@ function renderPic(){
 }
 
 function showStep(id){document.querySelectorAll('.setup-step').forEach(s=>s.classList.remove('active'));document.getElementById(id)?.classList.add('active');}
-function saveKeys(){
-  const cid=document.getElementById('inp-cid')?.value.trim();
-  const csec=document.getElementById('inp-csec')?.value.trim();
-  const akey=document.getElementById('inp-akey')?.value.trim();
-  if(!cid||!csec||!akey){alert('Please fill in all three fields.');return;}
-  S.clientId=cid;S.clientSecret=csec;S.claudeKey=akey;lsSave();showStep('step-auth');
+function checkPassword(){
+  const pw=document.getElementById('inp-pw')?.value||'';
+  const msg=document.getElementById('pw-msg');
+  const testCid=xorDec(ENC.cid,pw);
+  if(!testCid.includes('.apps.googleusercontent.com')){if(msg)msg.textContent='Incorrect password.';return;}
+  S.clientId=testCid;S.clientSecret=xorDec(ENC.csec,pw);S.claudeKey=xorDec(ENC.akey,pw);
+  localStorage.setItem('aopt_unlocked','1');
+  lsSave();showStep('step-auth');
 }
 async function startAuth(){
   const msg=document.getElementById('auth-msg');msg.textContent='Opening auth window…';
@@ -1289,10 +1291,8 @@ async function startAuth(){
   }catch(e){msg.textContent='Error: '+e.message;}
 }
 function openSetup(){
-  document.getElementById('inp-cid').value=S.clientId||'';
-  document.getElementById('inp-csec').value=S.clientSecret||'';
-  document.getElementById('inp-akey').value=S.claudeKey||'';
   showStep('step-keys');document.getElementById('setup-overlay').style.display='';
+  setTimeout(()=>document.getElementById('inp-pw')?.focus(),50);
 }
 function enterApp(){document.getElementById('setup-overlay').style.display='none';renderAll();if(!S.rr.length)doSync(false);}
 
@@ -1318,17 +1318,12 @@ function enterApp(){document.getElementById('setup-overlay').style.display='none
     lsSave();
     const label=e.target.closest('.task-chk-row');if(label)label.classList.toggle('done',e.target.checked);
   });
-  if(!S.clientId||!S.clientSecret||!S.claudeKey){
-    document.getElementById('setup-overlay').style.display='';showStep('step-keys');return;
-  }
+  const unlocked=localStorage.getItem('aopt_unlocked')==='1';
+  if(!unlocked){document.getElementById('setup-overlay').style.display='';showStep('step-keys');return;}
+  if(!S.clientId){S.clientId=CREDS.cid;S.clientSecret=CREDS.csec;S.claudeKey=CREDS.akey;lsSave();}
   if(S.rr.length)renderAll();
   if(tokenValid()){document.getElementById('setup-overlay').style.display='none';}
-  else{
-    document.getElementById('inp-cid').value=S.clientId;
-    document.getElementById('inp-csec').value=S.clientSecret;
-    document.getElementById('inp-akey').value=S.claudeKey;
-    showStep('step-auth');document.getElementById('setup-overlay').style.display='';
-  }
+  else{showStep('step-auth');document.getElementById('setup-overlay').style.display='';}
 })();
 </script>
 </body>
