@@ -1433,30 +1433,62 @@ async function syncToTodoist(){
   if(btn)btn.textContent='Syncing…';
   try{
     const tok=xorDec(TDTOKEN,'shopee');
+    // Find Work project
     const projRes=await fetch('https://api.todoist.com/rest/v2/projects',{headers:{Authorization:'Bearer '+tok}});
     if(!projRes.ok)throw new Error('Todoist auth failed ('+projRes.status+')');
     const projects=await projRes.json();
     const workProj=projects.find(p=>p.name.toLowerCase().includes('work'));
     if(!workProj){addLog('Todoist: "Work" project not found. Available: '+projects.map(p=>p.name).join(', '),'err');document.getElementById('log-panel').style.display='';if(btn)btn.textContent=origLabel;return;}
+    // Fetch currently active tasks in Work
+    const taskRes=await fetch('https://api.todoist.com/rest/v2/tasks?project_id='+workProj.id,{headers:{Authorization:'Bearer '+tok}});
+    if(!taskRes.ok)throw new Error('Failed to fetch Todoist tasks ('+taskRes.status+')');
+    const activeTasks=await taskRes.json();
+    const activeIds=new Set(activeTasks.map(t=>t.id));
     const priMap={'P1':4,'P2':3,'P3':2,'BAU':1};
-    let created=0;
+    let created=0,closed=0,pulled=0;let stateChanged=false;
     for(let i=0;i<S.rr.length;i++){
-      const row=S.rr[i];const e=S.edits[i]||{};
+      const row=S.rr[i];
+      if(!S.edits[i])S.edits[i]={};
+      const e=S.edits[i];
       const projName=normProjName(String(row[C.PROJ]||'').trim());if(!projName)continue;
       const taskText=e.task!==undefined?e.task:String(row[C.TASK]||'');if(!taskText.trim())continue;
       const lines=taskText.split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean);
       const priRaw=String(e.pri!==undefined?e.pri:row[C.PRI]||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
       const priority=priMap[priRaw]||1;
-      for(const line of lines){
-        await fetch('https://api.todoist.com/rest/v2/tasks',{
-          method:'POST',
-          headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
-          body:JSON.stringify({content:'['+projName+'] '+line,project_id:workProj.id,priority})
-        });
-        created++;
+      if(!e.todoistIds)e.todoistIds={};
+      if(!e.checkedTasks)e.checkedTasks=[];
+      for(let li=0;li<lines.length;li++){
+        const line=lines[li];
+        const key=line.toLowerCase().trim();
+        const tid=e.todoistIds[key];
+        const isChecked=e.checkedTasks.includes(li);
+        if(tid){
+          if(!activeIds.has(tid)){
+            // Gone from Todoist active → completed there → pull to tracker
+            if(!isChecked){e.checkedTasks.push(li);pulled++;stateChanged=true;}
+          } else if(isChecked){
+            // Checked in tracker but still active in Todoist → close it
+            await fetch('https://api.todoist.com/rest/v2/tasks/'+tid+'/close',{method:'POST',headers:{Authorization:'Bearer '+tok}});
+            closed++;
+          }
+        } else if(!isChecked){
+          // No ID yet and not done → create in Todoist
+          const res=await fetch('https://api.todoist.com/rest/v2/tasks',{
+            method:'POST',
+            headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
+            body:JSON.stringify({content:'['+projName+'] '+line,project_id:workProj.id,priority})
+          });
+          if(res.ok){const nt=await res.json();e.todoistIds[key]=nt.id;created++;stateChanged=true;}
+        }
+        // If isChecked and no ID → already done, skip
       }
     }
-    addLog('Todoist: '+created+' task(s) created in "'+workProj.name+'"','ok');
+    if(stateChanged){lsSave();renderAll();}
+    const parts=[];
+    if(created)parts.push(created+' created');
+    if(closed)parts.push(closed+' closed in Todoist');
+    if(pulled)parts.push(pulled+' marked done from Todoist');
+    addLog('Todoist sync: '+(parts.length?parts.join(', '):'up to date')+' ("'+workProj.name+'")',parts.length?'ok':'info');
     document.getElementById('log-panel').style.display='';
   }catch(e){addLog('Todoist: '+e.message,'err');document.getElementById('log-panel').style.display='';}
   if(btn)btn.textContent=origLabel;
