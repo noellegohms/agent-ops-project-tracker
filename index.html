@@ -635,7 +635,7 @@ async function fetchEmails(){
     const det=await Promise.allSettled(d.messages.slice(0,5).map(m=>gfetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+m.id+'?format=full')));
     return det.filter(r=>r.status==='fulfilled').map(r=>({
       subject:r.value.payload?.headers?.find(h=>h.name==='Subject')?.value||'',
-      body:extractBody(r.value.payload).slice(0,4000),
+      body:extractBody(r.value.payload).slice(0,12000),
     })).filter(e=>e.body);
   }catch(e){addLog('Gmail: '+e.message,'err');return [];}
 }
@@ -679,9 +679,11 @@ function statusClass(s){
 function priClass(p){return({'p1':'p1','p2':'p2','p3':'p3'}[String(p||'').toLowerCase().replace(/[^a-z0-9]/g,'')])||'p3';}
 
 function matchCtx(name,emails,events){
-  const words=String(name||'').toLowerCase().split(/\s+/).filter(w=>w.length>3);
+  // Digest emails cover all projects — pass them all through without keyword filtering.
+  // Calendar events are general so still filter by project name keywords (>=2 chars).
+  const words=String(name||'').toLowerCase().split(/\s+/).filter(w=>w.length>=2);
   const score=t=>words.filter(w=>String(t).toLowerCase().includes(w)).length;
-  return{filteredEmails:emails.filter(e=>score(e.subject+' '+e.body)>0),filteredEvents:events.filter(e=>score(e.summary)>0)};
+  return{filteredEmails:emails,filteredEvents:events.filter(e=>score(e.summary)>0)};
 }
 
 // ── AI Synthesis ──────────────────────────────────────────────────────────────
