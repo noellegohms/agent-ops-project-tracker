@@ -201,6 +201,7 @@ td{padding:9px 12px;vertical-align:top;}
       <button class="btn btn-ghost btn-sm" onclick="saveToDrive(false)" title="Save to Google Drive now">☁ Save</button>
       <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive">☁ —</span>
       <button class="btn btn-ghost btn-sm" onclick="restoreFromDrive()" title="Restore from Google Drive">↩ Restore</button>
+      <button class="btn btn-ghost btn-sm" id="todoist-btn" onclick="syncToTodoist()" title="Sync tasks to Todoist">☑ Todoist</button>
       <button class="btn btn-ghost btn-sm" onclick="openSetup()" title="Settings">⚙</button>
     </div>
   </div>
@@ -415,6 +416,7 @@ const ENC={
   akey:'000342110b115e091f1955565e0d184423092c2137253a3d1c2c29232b320211180a0e00093f3e453f343b5e1f5d00061c252c01563c44013b052a332b0f23320f0014512b3c3409162728271730401d4248513c0007033f502b0b5f190209091c59185d5217262c24072424'
 };
 function xorDec(hex,key){return hex.match(/.{2}/g).map((b,i)=>String.fromCharCode(parseInt(b,16)^key.charCodeAt(i%key.length))).join('');}
+const TDTOKEN='41095715005041095e1456014a0c5f450756420a0915505243500947075140500914545d16510a47';
 const AUTO_COLS=['Workflow','Target Outcome','Architecture','PIC','Timeline'];
 const ELAB_SYSTEM=`You are a concise project status assistant for Shopee's Returns & Refund team.
 Output EXACTLY this structure — no exceptions:
@@ -1424,6 +1426,40 @@ function openSetup(){
   if(pwSec)pwSec.style.display=unlocked?'none':'';
   document.getElementById('setup-overlay').style.display='';
   if(!unlocked)setTimeout(()=>document.getElementById('inp-pw')?.focus(),50);
+}
+async function syncToTodoist(){
+  const btn=document.getElementById('todoist-btn');
+  const origLabel=btn?btn.textContent:'';
+  if(btn)btn.textContent='Syncing…';
+  try{
+    const tok=xorDec(TDTOKEN,'shopee');
+    const projRes=await fetch('https://api.todoist.com/rest/v2/projects',{headers:{Authorization:'Bearer '+tok}});
+    if(!projRes.ok)throw new Error('Todoist auth failed ('+projRes.status+')');
+    const projects=await projRes.json();
+    const workProj=projects.find(p=>p.name.toLowerCase().includes('work'));
+    if(!workProj){addLog('Todoist: "Work" project not found. Available: '+projects.map(p=>p.name).join(', '),'err');document.getElementById('log-panel').style.display='';if(btn)btn.textContent=origLabel;return;}
+    const priMap={'P1':4,'P2':3,'P3':2,'BAU':1};
+    let created=0;
+    for(let i=0;i<S.rr.length;i++){
+      const row=S.rr[i];const e=S.edits[i]||{};
+      const projName=normProjName(String(row[C.PROJ]||'').trim());if(!projName)continue;
+      const taskText=e.task!==undefined?e.task:String(row[C.TASK]||'');if(!taskText.trim())continue;
+      const lines=taskText.split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean);
+      const priRaw=String(e.pri!==undefined?e.pri:row[C.PRI]||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      const priority=priMap[priRaw]||1;
+      for(const line of lines){
+        await fetch('https://api.todoist.com/rest/v2/tasks',{
+          method:'POST',
+          headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
+          body:JSON.stringify({content:'['+projName+'] '+line,project_id:workProj.id,priority})
+        });
+        created++;
+      }
+    }
+    addLog('Todoist: '+created+' task(s) created in "'+workProj.name+'"','ok');
+    document.getElementById('log-panel').style.display='';
+  }catch(e){addLog('Todoist: '+e.message,'err');document.getElementById('log-panel').style.display='';}
+  if(btn)btn.textContent=origLabel;
 }
 function enterApp(){document.getElementById('setup-overlay').style.display='none';renderAll();if(!S.rr.length)doSync(false);}
 
