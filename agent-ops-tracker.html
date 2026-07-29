@@ -1439,55 +1439,115 @@ async function syncToTodoist(){
     const projects=await projRes.json();
     const workProj=projects.find(p=>p.name.toLowerCase().includes('work'));
     if(!workProj){addLog('Todoist: "Work" project not found. Available: '+projects.map(p=>p.name).join(', '),'err');document.getElementById('log-panel').style.display='';if(btn)btn.textContent=origLabel;return;}
-    // Fetch currently active tasks in Work
+    // Fetch active tasks
     const taskRes=await fetch('https://api.todoist.com/rest/v2/tasks?project_id='+workProj.id,{headers:{Authorization:'Bearer '+tok}});
     if(!taskRes.ok)throw new Error('Failed to fetch Todoist tasks ('+taskRes.status+')');
     const activeTasks=await taskRes.json();
-    const activeIds=new Set(activeTasks.map(t=>t.id));
+    const activeMap={};activeTasks.forEach(t=>{activeMap[t.id]=t;});
+    // Try to fetch completed task IDs (Pro plan — fall back gracefully)
+    let completedIds=new Set();let hasCompletedAPI=false;
+    try{
+      const cRes=await fetch('https://api.todoist.com/rest/v2/tasks/completed/get_all?project_id='+workProj.id+'&limit=200',{headers:{Authorization:'Bearer '+tok}});
+      if(cRes.ok){
+        const cData=await cRes.json();
+        const items=Array.isArray(cData)?cData:(cData.items||[]);
+        items.forEach(t=>{completedIds.add(String(t.id||t.task_id||''));});
+        hasCompletedAPI=true;
+      }
+    }catch(_){}
     const priMap={'P1':4,'P2':3,'P3':2,'BAU':1};
-    let created=0,closed=0,pulled=0;let stateChanged=false;
+    let created=0,updated=0,closed=0,tdPulled=0,tdDeleted=0,trackerDeleted=0;
+    let stateChanged=false;
+    function stripPrefix(c){const m=c.match(/^\[.*?\]\s*/);return m?c.slice(m[0].length):c;}
     for(let i=0;i<S.rr.length;i++){
       const row=S.rr[i];
       if(!S.edits[i])S.edits[i]={};
       const e=S.edits[i];
       const projName=normProjName(String(row[C.PROJ]||'').trim());if(!projName)continue;
-      const taskText=e.task!==undefined?e.task:String(row[C.TASK]||'');if(!taskText.trim())continue;
-      const lines=taskText.split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean);
+      // Migrate old text-keyed todoistIds to position-based todoistLines
+      if(!e.todoistLines&&e.todoistIds){
+        const t0=e.task!==undefined?e.task:String(row[C.TASK]||'');
+        const l0=t0.split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean);
+        e.todoistLines=l0.map(l=>{const id=e.todoistIds[l.toLowerCase().trim()];return id?{id,text:l}:null;});
+        delete e.todoistIds;stateChanged=true;
+      }
+      const taskText=e.task!==undefined?e.task:String(row[C.TASK]||'');
+      let currentLines=taskText.split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean);
       const priRaw=String(e.pri!==undefined?e.pri:row[C.PRI]||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
       const priority=priMap[priRaw]||1;
-      if(!e.todoistIds)e.todoistIds={};
+      if(!e.todoistLines)e.todoistLines=[];
       if(!e.checkedTasks)e.checkedTasks=[];
-      for(let li=0;li<lines.length;li++){
-        const line=lines[li];
-        const key=line.toLowerCase().trim();
-        const tid=e.todoistIds[key];
+      const removeFromTracker=[];
+      // --- Process each current line ---
+      for(let li=0;li<currentLines.length;li++){
+        const stored=e.todoistLines[li];
         const isChecked=e.checkedTasks.includes(li);
-        if(tid){
-          if(!activeIds.has(tid)){
-            // Gone from Todoist active → completed there → pull to tracker
-            if(!isChecked){e.checkedTasks.push(li);pulled++;stateChanged=true;}
-          } else if(isChecked){
-            // Checked in tracker but still active in Todoist → close it
-            await fetch('https://api.todoist.com/rest/v2/tasks/'+tid+'/close',{method:'POST',headers:{Authorization:'Bearer '+tok}});
-            closed++;
+        if(stored&&stored.id){
+          const td=activeMap[stored.id];
+          if(td){
+            // Still active in Todoist — sync text
+            const tdText=stripPrefix(td.content);
+            const trackerText=currentLines[li];
+            if(tdText!==stored.text&&trackerText===stored.text){
+              // Todoist edited → pull to tracker
+              currentLines[li]=tdText;e.todoistLines[li]={id:stored.id,text:tdText};tdPulled++;stateChanged=true;
+            } else if(trackerText!==stored.text){
+              // Tracker edited (or both — tracker wins) → push to Todoist
+              await fetch('https://api.todoist.com/rest/v2/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+trackerText})});
+              e.todoistLines[li]={id:stored.id,text:trackerText};updated++;stateChanged=true;
+            }
+            // Completion: tracker checked → close in Todoist
+            if(isChecked){
+              await fetch('https://api.todoist.com/rest/v2/tasks/'+stored.id+'/close',{method:'POST',headers:{Authorization:'Bearer '+tok}});
+              closed++;
+            }
+          } else {
+            // Gone from Todoist — completed or deleted?
+            if(hasCompletedAPI&&completedIds.has(String(stored.id))){
+              // Completed in Todoist → check off in tracker
+              if(!isChecked){e.checkedTasks.push(li);tdPulled++;stateChanged=true;}
+            } else if(hasCompletedAPI){
+              // Not in completed list → deleted in Todoist → remove from tracker
+              removeFromTracker.push(li);tdDeleted++;stateChanged=true;
+            } else {
+              // No completed API (free plan) — treat disappearance as completion (safe default)
+              if(!isChecked){e.checkedTasks.push(li);tdPulled++;stateChanged=true;}
+            }
           }
         } else if(!isChecked){
-          // No ID yet and not done → create in Todoist
-          const res=await fetch('https://api.todoist.com/rest/v2/tasks',{
-            method:'POST',
-            headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
-            body:JSON.stringify({content:'['+projName+'] '+line,project_id:workProj.id,priority})
-          });
-          if(res.ok){const nt=await res.json();e.todoistIds[key]=nt.id;created++;stateChanged=true;}
+          // No stored ID and not done → create in Todoist
+          const res=await fetch('https://api.todoist.com/rest/v2/tasks',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+currentLines[li],project_id:workProj.id,priority})});
+          if(res.ok){const nt=await res.json();e.todoistLines[li]={id:nt.id,text:currentLines[li]};created++;stateChanged=true;}
         }
-        // If isChecked and no ID → already done, skip
       }
+      // --- Lines removed from tracker (fewer lines than stored) → delete in Todoist ---
+      for(let li=currentLines.length;li<e.todoistLines.length;li++){
+        const stored=e.todoistLines[li];
+        if(stored&&stored.id&&activeMap[stored.id]){
+          await fetch('https://api.todoist.com/rest/v2/tasks/'+stored.id,{method:'DELETE',headers:{Authorization:'Bearer '+tok}});
+          trackerDeleted++;
+        }
+      }
+      e.todoistLines.length=currentLines.length;
+      // --- Apply removals from Todoist deletion (reverse order to preserve indices) ---
+      for(let k=removeFromTracker.length-1;k>=0;k--){
+        const li=removeFromTracker[k];
+        currentLines.splice(li,1);
+        e.todoistLines.splice(li,1);
+        e.checkedTasks=e.checkedTasks.filter(x=>x!==li).map(x=>x>li?x-1:x);
+      }
+      // Save updated task text if anything changed
+      const newText=currentLines.join('\n');
+      if(newText!==taskText){e.task=newText;stateChanged=true;}
     }
     if(stateChanged){lsSave();renderAll();}
     const parts=[];
     if(created)parts.push(created+' created');
-    if(closed)parts.push(closed+' closed in Todoist');
-    if(pulled)parts.push(pulled+' marked done from Todoist');
+    if(updated)parts.push(updated+' text updated');
+    if(closed)parts.push(closed+' closed');
+    if(tdPulled)parts.push(tdPulled+' pulled from Todoist');
+    if(tdDeleted)parts.push(tdDeleted+' removed (deleted in Todoist)');
+    if(trackerDeleted)parts.push(trackerDeleted+' deleted in Todoist (removed from tracker)');
     addLog('Todoist sync: '+(parts.length?parts.join(', '):'up to date')+' ("'+workProj.name+'")',parts.length?'ok':'info');
     document.getElementById('log-panel').style.display='';
   }catch(e){addLog('Todoist: '+e.message,'err');document.getElementById('log-panel').style.display='';}
