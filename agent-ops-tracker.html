@@ -1449,6 +1449,7 @@ async function syncToTodoist(){
     const projects=await projRes.json();
     const workProj=projects.find(p=>p.name.toLowerCase().includes('work'));
     if(!workProj){addLog('Todoist: "Work" project not found. Available: '+projects.map(p=>p.name).join(', '),'err');document.getElementById('log-panel').style.display='';if(btn)btn.textContent=origLabel;return;}
+    addLog('Todoist: found project "'+workProj.name+'" (id:'+workProj.id+')','info');
     // Fetch active tasks
     const taskRes=await fetch('https://api.todoist.com/rest/v2/tasks?project_id='+workProj.id,{headers:{Authorization:'Bearer '+tok}});
     if(!taskRes.ok)throw new Error('Failed to fetch Todoist tasks ('+taskRes.status+')');
@@ -1468,6 +1469,8 @@ async function syncToTodoist(){
     const priMap={'P1':4,'P2':3,'P3':2,'BAU':1};
     let created=0,updated=0,closed=0,tdPulled=0,tdDeleted=0,trackerDeleted=0;
     let stateChanged=false;
+    const projsWithTasks=S.rr.filter((_,i)=>{const e=S.edits[i]||{};const t=e.task!==undefined?e.task:String(S.rr[i]?.[C.TASK]||'');return t.trim();}).length;
+    addLog('Todoist: '+S.rr.length+' tracker projects, '+projsWithTasks+' have task text','info');
     function stripPrefix(c){const m=c.match(/^\[.*?\]\s*/);return m?c.slice(m[0].length):c;}
     for(let i=0;i<S.rr.length;i++){
       const row=S.rr[i];
@@ -1527,7 +1530,7 @@ async function syncToTodoist(){
         } else if(!isChecked){
           // No stored ID and not done → create in Todoist
           const res=await fetch('https://api.todoist.com/rest/v2/tasks',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+currentLines[li],project_id:workProj.id,priority})});
-          if(res.ok){const nt=await res.json();e.todoistLines[li]={id:nt.id,text:currentLines[li]};created++;stateChanged=true;}
+          if(res.ok){const nt=await res.json();e.todoistLines[li]={id:nt.id,text:currentLines[li]};created++;stateChanged=true;}else{addLog('Todoist: task create failed (HTTP '+res.status+') for: '+currentLines[li].slice(0,40),'err');}
         }
       }
       // --- Lines removed from tracker (fewer lines than stored) → delete in Todoist ---
