@@ -628,7 +628,7 @@ function extractBody(payload){
 }
 async function fetchEmails(){
   const after=Math.floor((Date.now()-7*86400000)/1000);
-  const q=encodeURIComponent('subject:"Fwd: Work Emails as of" after:'+after);
+  const q=encodeURIComponent('subject:"[Automation - Agent Ops Project Tracker] Project Email Updates as of" label:09-Automations after:'+after);
   try{
     const d=await gfetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q='+q+'&maxResults=10');
     if(!d.messages?.length){addLog('Gmail: no digest emails','info');return [];}
