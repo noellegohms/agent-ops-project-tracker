@@ -174,20 +174,15 @@ td{padding:9px 12px;vertical-align:top;}
     <div class="setup-icon">📋</div>
     <h2>RR Agent Ops Project Tracker</h2>
     <p class="setup-desc">Connect your Google account and Anthropic API key to get started.</p>
-    <div class="setup-step active" id="step-keys">
+    <div id="setup-pw-section">
       <label class="setup-label">Password</label>
-      <input class="setup-input" id="inp-pw" type="password" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')checkPassword()">
+      <input class="setup-input" id="inp-pw" type="password" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')connectFlow()">
       <div id="pw-msg" style="font-size:12px;color:#e8624b;margin-top:6px;min-height:18px;"></div>
-      <div class="setup-actions"><button class="btn btn-primary" onclick="checkPassword()">Unlock →</button></div>
     </div>
-    <div class="setup-step" id="step-auth">
-      <div class="info-box">Open this page via <strong>http://localhost:8080/agent-ops-tracker.html</strong></div>
-      <div class="info-box">Log on terminal via <strong>cd ~/Desktop &amp;&amp; python3 -m http.server 8080</strong></div>
-      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Grant access to Google Sheets, Gmail, and Calendar.</p>
-      <button class="btn btn-primary" onclick="startAuth()">Connect Google Account</button>
-      <div id="auth-msg"></div>
-      <div class="setup-actions" style="margin-top:14px;"><button class="btn btn-secondary" onclick="showStep('step-keys')">← Back</button></div>
+    <div class="setup-actions" style="margin-top:18px;">
+      <button class="btn btn-primary" onclick="connectFlow()">Connect Google Account</button>
     </div>
+    <div id="auth-msg" style="font-size:12px;color:var(--text-muted);margin-top:8px;min-height:20px;"></div>
   </div>
 </div>
 
@@ -1406,26 +1401,29 @@ function rejectMapping(trackerIdx,srcName){
   lsSave();renderRR();
 }
 
-function showStep(id){document.querySelectorAll('.setup-step').forEach(s=>s.classList.remove('active'));document.getElementById(id)?.classList.add('active');}
-function checkPassword(){
-  const pw=document.getElementById('inp-pw')?.value||'';
+async function connectFlow(){
+  const pwSec=document.getElementById('setup-pw-section');
   const msg=document.getElementById('pw-msg');
-  const testCid=xorDec(ENC.cid,pw);
-  if(!testCid.includes('.apps.googleusercontent.com')){if(msg)msg.textContent='Incorrect password.';return;}
-  S.clientId=testCid;S.clientSecret=xorDec(ENC.csec,pw);S.claudeKey=xorDec(ENC.akey,pw);
-  localStorage.setItem('aopt_unlocked','1');
-  lsSave();showStep('step-auth');
-}
-async function startAuth(){
-  const msg=document.getElementById('auth-msg');msg.textContent='Opening auth window…';
+  const amsg=document.getElementById('auth-msg');
+  if(pwSec&&pwSec.style.display!=='none'){
+    const pw=document.getElementById('inp-pw')?.value||'';
+    const testCid=xorDec(ENC.cid,pw);
+    if(!testCid.includes('.apps.googleusercontent.com')){if(msg)msg.textContent='Incorrect password.';return;}
+    S.clientId=testCid;S.clientSecret=xorDec(ENC.csec,pw);S.claudeKey=xorDec(ENC.akey,pw);
+    localStorage.setItem('aopt_unlocked','1');lsSave();
+  }
+  if(amsg)amsg.textContent='Opening auth window…';
   try{
     const t=await openAuthPopup();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;
-    lsSave();msg.textContent='✓ Connected!';setTimeout(enterApp,700);
-  }catch(e){msg.textContent='Error: '+e.message;}
+    lsSave();if(amsg)amsg.textContent='✓ Connected!';setTimeout(enterApp,700);
+  }catch(e){if(amsg)amsg.textContent='Error: '+e.message;}
 }
 function openSetup(){
-  showStep('step-keys');document.getElementById('setup-overlay').style.display='';
-  setTimeout(()=>document.getElementById('inp-pw')?.focus(),50);
+  const unlocked=localStorage.getItem('aopt_unlocked')==='1';
+  const pwSec=document.getElementById('setup-pw-section');
+  if(pwSec)pwSec.style.display=unlocked?'none':'';
+  document.getElementById('setup-overlay').style.display='';
+  if(!unlocked)setTimeout(()=>document.getElementById('inp-pw')?.focus(),50);
 }
 function enterApp(){document.getElementById('setup-overlay').style.display='none';renderAll();if(!S.rr.length)doSync(false);}
 
@@ -1461,11 +1459,12 @@ function enterApp(){document.getElementById('setup-overlay').style.display='none
     const label=e.target.closest('.task-chk-row');if(label)label.classList.toggle('done',e.target.checked);
   });
   const unlocked=localStorage.getItem('aopt_unlocked')==='1';
-  if(!unlocked){document.getElementById('setup-overlay').style.display='';showStep('step-keys');return;}
+  const pwSec=document.getElementById('setup-pw-section');
+  if(!unlocked){if(pwSec)pwSec.style.display='';document.getElementById('setup-overlay').style.display='';setTimeout(()=>document.getElementById('inp-pw')?.focus(),50);return;}
   if(!S.clientId){S.clientId=xorDec(ENC.cid,'shopee');S.clientSecret=xorDec(ENC.csec,'shopee');S.claudeKey=xorDec(ENC.akey,'shopee');lsSave();}
   if(S.rr.length)renderAll();
   if(tokenValid()){document.getElementById('setup-overlay').style.display='none';}
-  else{showStep('step-auth');document.getElementById('setup-overlay').style.display='';}
+  else{if(pwSec)pwSec.style.display='none';document.getElementById('setup-overlay').style.display='';}
 })();
 </script>
 </body>
