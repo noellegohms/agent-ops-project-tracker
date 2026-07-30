@@ -406,7 +406,7 @@ const SOURCE_TAB_NAME='RR Projects';
 const SC={PROJ:2,LEAD:3,REG_PIC:4,STATUS_REMARKS:11,WEEKLY:22};
 const REG_RR_PICS=new Set(['mark','seth','akshit','le yu','vidya','cherie']);
 const C={TYPE:0,CAT:1,PROJ:2,PRI:3,PIC:4,SIN:5,STATUS:6,ELAB:7,TEAM_UPDATE:8,AI:10,TASK:11,DONE:12};
-const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file';
+const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.appdata';
 const DRIVE_FILE_NAME='aopt-backup.json';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
 const LS_KEY='aopt';
@@ -896,13 +896,13 @@ async function saveToDrive(silent){
 
     // Search for existing file if we don't have an ID cached
     if(!fileId){
-      const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'" and trashed=false');
-      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
+      const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
+      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
       const data=await res.json();
       if(data.files&&data.files.length)fileId=data.files[0].id;
     }
 
-    const meta=JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json'});
+    const meta=JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json',parents:['appDataFolder']});
     const form=new FormData();
     form.append('metadata',new Blob([meta],{type:'application/json'}));
     form.append('file',blob);
@@ -931,8 +931,8 @@ async function restoreFromDrive(){
     const tok=await ensureToken();
     let fileId=S.driveFileId;
     if(!fileId){
-      const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'" and trashed=false');
-      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
+      const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
+      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
       const data=await res.json();
       if(!data.files||!data.files.length){alert('No backup file found in Google Drive.');return;}
       fileId=data.files[0].id;
@@ -1578,8 +1578,8 @@ function enterApp(){
     (async()=>{
       try{
         const tok=await ensureToken();
-        const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'" and trashed=false');
-        const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
+        const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
+        const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
         const data=await res.json();
         if(data.files&&data.files.length){
           const fileId=data.files[0].id;
