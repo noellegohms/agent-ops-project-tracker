@@ -418,8 +418,11 @@ const ENC={
 };
 function xorDec(hex,key){return hex.match(/.{2}/g).map((b,i)=>String.fromCharCode(parseInt(b,16)^key.charCodeAt(i%key.length))).join('');}
 const TDTOKEN='41095715005041095e1456014a0c5f450756420a0915505243500947075140500914545d16510a47';
-const TD_PROXY='https://corsproxy.io/?';
-function tdFetch(path,opts){return fetch(TD_PROXY+'https://api.todoist.com/rest/v2'+path,opts||{});}
+function tdFetch(path,opts){
+  const target='https://api.todoist.com/rest/v2'+path;
+  // Try direct first; fall back to CORS proxy
+  return fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(target),opts||{});
+}
 const AUTO_COLS=['Workflow','Target Outcome','Architecture','PIC','Timeline'];
 const ELAB_SYSTEM=`You are a concise project status assistant for Shopee's Returns & Refund team.
 Output EXACTLY this structure — no exceptions:
