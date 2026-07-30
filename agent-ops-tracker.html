@@ -445,6 +445,12 @@ var _staleResolve=null;
 function staleRemoveAll(){if(_staleResolve)_staleResolve('remove-all');}
 function staleHandleIndividually(){if(_staleResolve)_staleResolve('handle-individually');}
 
+let _driveSaveTimer=null;
+function debouncedDriveSave(){
+  if(!tokenValid())return;
+  clearTimeout(_driveSaveTimer);
+  _driveSaveTimer=setTimeout(()=>saveToDrive(true),10000);
+}
 function lsSave(){
   try{
     localStorage.setItem(LS_KEY,JSON.stringify({
@@ -456,6 +462,7 @@ function lsSave(){
       sourceRows:S.sourceRows,directMatches:S.directMatches,uncertainMatches:S.uncertainMatches,
       unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,extraMappings:S.extraMappings,
     }));
+    debouncedDriveSave();
   }catch(e){dbg('lsSave: '+e.message,'err');}
 }
 function lsLoad(){
@@ -944,15 +951,7 @@ function updateDriveStatus(ok){
   el.title=ok?'Last Drive save: '+new Date().toLocaleTimeString('en-SG'):'Not yet saved to Drive';
 }
 
-function scheduleDriveSave(){
-  // 5:30pm SGT = 09:30 UTC
-  const now=Date.now(),next=new Date(now);
-  next.setUTCHours(9,30,0,0);
-  if(next.getTime()<=now)next.setUTCDate(next.getUTCDate()+1);
-  const ms=next.getTime()-now;
-  dbg('Drive save scheduled in '+(ms/60000).toFixed(0)+'min','info');
-  setTimeout(()=>{saveToDrive(true);scheduleDriveSave();},ms);
-}
+
 function addLog(msg,cls){
   S.log.push({msg,cls:cls||'info',ts:new Date().toLocaleTimeString('en-SG')});
   const el=document.getElementById('log-entries');
@@ -1603,7 +1602,7 @@ function enterApp(){
     for(const[k,v]of Object.entries(sysMaps)){if(JSON.stringify(S.extraMappings[k])!==JSON.stringify(v)){S.extraMappings[k]=v;changed=true;}}
     if(changed)lsSave();
   })();
-  scheduleAutoSync();scheduleDriveSave();
+  scheduleAutoSync();
   document.getElementById('rr-filter-bar').addEventListener('click',function(e){
     const p=e.target.closest('.pill[data-fk]');
     if(p&&p.dataset.fk&&!p.dataset.fk.match(/^(task|ai)$/))toggleFilter(p.dataset.fk,p.dataset.val);
