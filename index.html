@@ -1560,9 +1560,11 @@ async function syncToTodoist(){
     if(tdPulled)parts.push(tdPulled+' pulled from Todoist');
     if(tdDeleted)parts.push(tdDeleted+' removed (deleted in Todoist)');
     if(trackerDeleted)parts.push(trackerDeleted+' deleted in Todoist (removed from tracker)');
-    addLog('Todoist sync: '+(parts.length?parts.join(', '):'up to date')+' ("'+workProj.name+'")',parts.length?'ok':'info');
+    const summary='Todoist sync: '+(parts.length?parts.join(', '):'up to date')+' ("'+workProj.name+'")';
+    addLog(summary,parts.length?'ok':'info');
     document.getElementById('log-panel').style.display='';
-  }catch(e){addLog('Todoist: '+e.message,'err');document.getElementById('log-panel').style.display='';}
+    alert(summary);
+  }catch(e){const em='Todoist error: '+e.message;addLog(em,'err');document.getElementById('log-panel').style.display='';alert(em);}
   if(btn)btn.textContent=origLabel;
 }
 function enterApp(){
