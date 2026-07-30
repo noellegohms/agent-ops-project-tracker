@@ -1566,7 +1566,31 @@ async function syncToTodoist(){
   }catch(e){addLog('Todoist: '+e.message,'err');document.getElementById('log-panel').style.display='';}
   if(btn)btn.textContent=origLabel;
 }
-function enterApp(){document.getElementById('setup-overlay').style.display='none';renderAll();if(!S.lastSync)doSync(false);}
+function enterApp(){
+  document.getElementById('setup-overlay').style.display='none';
+  renderAll();
+  if(!S.lastSync){
+    // Fresh device — try to restore from Drive first, then sync
+    (async()=>{
+      try{
+        const tok=await ensureToken();
+        const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'" and trashed=false');
+        const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
+        const data=await res.json();
+        if(data.files&&data.files.length){
+          const fileId=data.files[0].id;
+          const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
+          const text=await r.text();
+          localStorage.setItem(LS_KEY,text);
+          lsLoad();renderAll();
+          addLog('New device: restored data from Drive ✓','ok');
+          document.getElementById('log-panel').style.display='';
+        }
+      }catch(e){dbg('auto-restore: '+e.message,'err');}
+      doSync(false);
+    })();
+  }
+}
 
 (function init(){
   if(window.opener)return;
