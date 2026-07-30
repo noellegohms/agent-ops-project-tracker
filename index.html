@@ -917,8 +917,8 @@ async function saveToDrive(silent){
       r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+tok},body:form});
     }
     const d=await r.json();
-    if(d.id){S.driveFileId=d.id;lsSave();addLog('Drive: file saved, id='+d.id,'info');}
-    else{addLog('Drive save response had no id: '+JSON.stringify(d),'err');document.getElementById('log-panel').style.display='';}
+    if(d.id){S.driveFileId=d.id;lsSave();}
+    else{addLog('Drive save failed: '+JSON.stringify(d?.error?.message||d),'err');document.getElementById('log-panel').style.display='';return;}
     if(!silent)addLog('Saved to Drive ✓ ('+new Date().toLocaleTimeString('en-SG')+')','ok');
     updateDriveStatus(true);
   }catch(e){
