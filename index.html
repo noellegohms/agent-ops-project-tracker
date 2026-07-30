@@ -1566,7 +1566,7 @@ async function syncToTodoist(){
   }catch(e){addLog('Todoist: '+e.message,'err');document.getElementById('log-panel').style.display='';}
   if(btn)btn.textContent=origLabel;
 }
-function enterApp(){document.getElementById('setup-overlay').style.display='none';renderAll();if(!S.rr.length)doSync(false);}
+function enterApp(){document.getElementById('setup-overlay').style.display='none';renderAll();if(!S.lastSync)doSync(false);}
 
 (function init(){
   if(window.opener)return;
