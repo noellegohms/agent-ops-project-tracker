@@ -407,6 +407,7 @@ const SC={PROJ:2,LEAD:3,REG_PIC:4,STATUS_REMARKS:11,WEEKLY:22};
 const REG_RR_PICS=new Set(['mark','seth','akshit','le yu','vidya','cherie']);
 const C={TYPE:0,CAT:1,PROJ:2,PRI:3,PIC:4,SIN:5,STATUS:6,ELAB:7,TEAM_UPDATE:8,AI:10,TASK:11,DONE:12};
 const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.appdata';
+const SCOPES_VERSION='v2-appdata'; // bump this whenever SCOPES changes to force re-consent
 const DRIVE_FILE_NAME='aopt-backup.json';
 const CLAUDE_MODEL='claude-haiku-4-5-20251001';
 const LS_KEY='aopt';
@@ -509,7 +510,7 @@ async function openAuthPopup(){
     const params=new URLSearchParams({
       client_id:S.clientId,redirect_uri:redirectUri(),response_type:'code',scope:SCOPES,
       code_challenge:ch,code_challenge_method:'S256',access_type:'offline',
-      prompt:S.refreshToken?'select_account':'consent',
+      prompt:(S.refreshToken&&localStorage.getItem('aopt_scope_ver')===SCOPES_VERSION)?'select_account':'consent',
     });
     const popup=window.open('https://accounts.google.com/o/oauth2/v2/auth?'+params,'gauth','width=520,height=640,top=100,left=100');
     if(!popup){reject(new Error('Popup blocked'));return;}
@@ -548,7 +549,7 @@ async function ensureToken(){
     try{const t=await doRefreshToken();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;lsSave();return S.token;}
     catch(e){S.refreshToken=null;lsSave();}
   }
-  const t=await openAuthPopup();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;lsSave();return S.token;
+  const t=await openAuthPopup();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;localStorage.setItem('aopt_scope_ver',SCOPES_VERSION);lsSave();return S.token;
 }
 async function gfetch(url){
   const tok=await ensureToken();
