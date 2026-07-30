@@ -918,7 +918,8 @@ async function saveToDrive(silent){
     if(!silent)addLog('Saved to Drive ✓ ('+new Date().toLocaleTimeString('en-SG')+')','ok');
     updateDriveStatus(true);
   }catch(e){
-    if(!silent)addLog('Drive save failed: '+e.message,'err');
+    addLog('Drive save failed: '+e.message,'err');
+    document.getElementById('log-panel').style.display='';
     dbg('saveToDrive: '+e.message,'err');
     updateDriveStatus(false);
   }
