@@ -917,7 +917,8 @@ async function saveToDrive(silent){
       r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+tok},body:form});
     }
     const d=await r.json();
-    if(d.id){S.driveFileId=d.id;lsSave();}
+    if(d.id){S.driveFileId=d.id;lsSave();addLog('Drive: file saved, id='+d.id,'info');}
+    else{addLog('Drive save response had no id: '+JSON.stringify(d),'err');document.getElementById('log-panel').style.display='';}
     if(!silent)addLog('Saved to Drive ✓ ('+new Date().toLocaleTimeString('en-SG')+')','ok');
     updateDriveStatus(true);
   }catch(e){
@@ -935,9 +936,11 @@ async function restoreFromDrive(){
     let fileId=S.driveFileId;
     if(!fileId){
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
-      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
+      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,name)',{headers:{Authorization:'Bearer '+tok}});
       const data=await res.json();
-      if(!data.files||!data.files.length){alert('No backup file found in Google Drive.');return;}
+      addLog('Drive restore search: '+JSON.stringify(data),'info');
+      document.getElementById('log-panel').style.display='';
+      if(!data.files||!data.files.length){alert('No backup file found.\n\nDrive API returned: '+JSON.stringify(data));return;}
       fileId=data.files[0].id;
     }
     const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
