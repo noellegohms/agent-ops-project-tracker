@@ -904,7 +904,7 @@ async function saveToDrive(silent){
       if(data.files&&data.files.length)fileId=data.files[0].id;
     }
 
-    const meta=JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json',parents:['appDataFolder']});
+    const meta=fileId?JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json'}):JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json',parents:['appDataFolder']});
     const form=new FormData();
     form.append('metadata',new Blob([meta],{type:'application/json'}));
     form.append('file',blob);
