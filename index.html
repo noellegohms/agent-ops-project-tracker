@@ -418,7 +418,7 @@ const ENC={
 };
 function xorDec(hex,key){return hex.match(/.{2}/g).map((b,i)=>String.fromCharCode(parseInt(b,16)^key.charCodeAt(i%key.length))).join('');}
 const TDTOKEN='41095715005041095e1456014a0c5f450756420a0915505243500947075140500914545d16510a47';
-function tdFetch(path,opts){return fetch('https://todoist-proxy.noellegohms.workers.dev'+path,opts||{});}
+function tdFetch(path,opts){var method=(opts&&opts.method)||'GET';var body=null;if(opts&&opts.body){try{body=JSON.parse(opts.body);}catch(e){body=opts.body;}}return fetch('https://script.google.com/macros/s/AKfycbyVj7EA0S8jENtol4TNyF5p0TNiqcX9a4PU775YvO-CbV7g0vYafFKcjvale9vJyevtZQ/exec',{method:'POST',body:JSON.stringify({method:method,path:path,body:body})}).then(function(r){return r.json().then(function(w){return{ok:w.status>=200&&w.status<300,status:w.status,json:function(){return Promise.resolve(w.body);},text:function(){return Promise.resolve(typeof w.body==='string'?w.body:JSON.stringify(w.body));}};});});}
 const AUTO_COLS=['Workflow','Target Outcome','Architecture','PIC','Timeline'];
 const ELAB_SYSTEM=`You are a concise project status assistant for Shopee's Returns & Refund team.
 Output EXACTLY this structure — no exceptions:
@@ -904,7 +904,7 @@ async function saveToDrive(silent){
       if(data.files&&data.files.length)fileId=data.files[0].id;
     }
 
-    const meta=JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json',parents:['appDataFolder']});
+    const meta=fileId?JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json'}):JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json',parents:['appDataFolder']});
     const form=new FormData();
     form.append('metadata',new Blob([meta],{type:'application/json'}));
     form.append('file',blob);
