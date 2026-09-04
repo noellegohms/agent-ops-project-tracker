@@ -1602,6 +1602,9 @@ function enterApp(){
             addLog('Auto-synced from Drive (newer data found) ✓','ok');
             document.getElementById('log-panel').style.display='';
           }
+        }else if(localSaved>driveModified+5000){
+          // Local is newer — push to Drive so other devices can pick it up
+          saveToDrive(true);
         }
       }
     }catch(e){dbg('auto-restore: '+e.message,'err');}
