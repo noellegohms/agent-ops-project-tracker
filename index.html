@@ -454,6 +454,7 @@ function debouncedDriveSave(){
 }
 function lsSave(){
   try{
+    S.lastSaved=Date.now();
     localStorage.setItem(LS_KEY,JSON.stringify({
       clientId:S.clientId,clientSecret:S.clientSecret,claudeKey:S.claudeKey,
       token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken,
@@ -462,6 +463,7 @@ function lsSave(){
       scopeEdits:S.scopeEdits,lastSync:S.lastSync,driveFileId:S.driveFileId||null,
       sourceRows:S.sourceRows,directMatches:S.directMatches,uncertainMatches:S.uncertainMatches,
       unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,extraMappings:S.extraMappings,
+      lastSaved:S.lastSaved,
     }));
     debouncedDriveSave();
   }catch(e){dbg('lsSave: '+e.message,'err');}
@@ -495,6 +497,7 @@ function lsLoad(){
     if(d.unmappedSource)S.unmappedSource=d.unmappedSource;
     if(d.mapJudgements)S.mapJudgements=d.mapJudgements;
     if(d.extraMappings)S.extraMappings=d.extraMappings;
+    if(d.lastSaved)S.lastSaved=d.lastSaved;
   }catch(e){dbg('lsLoad: '+e.message,'err');}
 }
 
@@ -1577,27 +1580,33 @@ async function syncToTodoist(){
 function enterApp(){
   document.getElementById('setup-overlay').style.display='none';
   renderAll();
-  if(!S.lastSync&&!S.rr.length){
-    // Fresh device — try to restore from Drive first, then sync
-    (async()=>{
-      try{
-        const tok=await ensureToken();
-        const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
-        const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
-        const data=await res.json();
-        if(data.files&&data.files.length){
-          const fileId=data.files[0].id;
+  // Auto-pull from Drive if Drive has newer data than local (handles cross-device sync)
+  (async()=>{
+    try{
+      const tok=await ensureToken();
+      const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
+      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,modifiedTime)',{headers:{Authorization:'Bearer '+tok}});
+      const data=await res.json();
+      if(data.files&&data.files.length){
+        const fileId=data.files[0].id;
+        const driveModified=new Date(data.files[0].modifiedTime).getTime();
+        const localSaved=S.lastSaved||0;
+        if(driveModified>localSaved+5000){
           const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
-          const text=await r.text();
-          localStorage.setItem(LS_KEY,text);
-          lsLoad();renderAll();
-          addLog('New device: restored data from Drive ✓','ok');
-          document.getElementById('log-panel').style.display='';
+          const txt=await r.text();
+          const parsed=JSON.parse(txt);
+          const driveSaved=parsed.lastSaved||driveModified;
+          if(driveSaved>localSaved){
+            localStorage.setItem(LS_KEY,txt);
+            lsLoad();renderAll();
+            addLog('Auto-synced from Drive (newer data found) ✓','ok');
+            document.getElementById('log-panel').style.display='';
+          }
         }
-      }catch(e){dbg('auto-restore: '+e.message,'err');}
-      doSync(false);
-    })();
-  }
+      }
+    }catch(e){dbg('auto-restore: '+e.message,'err');}
+    if(!S.lastSync)doSync(false);
+  })();
 }
 
 (function init(){
