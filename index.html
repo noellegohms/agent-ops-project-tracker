@@ -449,9 +449,8 @@ function staleHandleIndividually(){if(_staleResolve)_staleResolve('handle-indivi
 
 let _driveSaveTimer=null;
 function debouncedDriveSave(){
-  if(!tokenValid())return;
   clearTimeout(_driveSaveTimer);
-  _driveSaveTimer=setTimeout(()=>saveToDrive(true),10000);
+  _driveSaveTimer=setTimeout(()=>{if(tokenValid()||S.refreshToken)saveToDrive(true);},10000);
 }
 function lsSave(){
   try{
@@ -1578,7 +1577,7 @@ async function syncToTodoist(){
 function enterApp(){
   document.getElementById('setup-overlay').style.display='none';
   renderAll();
-  if(!S.lastSync){
+  if(!S.lastSync&&!S.rr.length){
     // Fresh device — try to restore from Drive first, then sync
     (async()=>{
       try{
