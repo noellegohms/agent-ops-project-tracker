@@ -83,7 +83,7 @@ td{padding:9px 12px;vertical-align:top;}
 .c-proj{width:155px;min-width:135px;}.c-pri{width:38px;text-align:center;}
 .c-pic{width:55px;}.c-sin{width:80px;}.c-status{width:88px;}
 .c-ela{min-width:439px;max-width:619px;width:499px;}
-.c-task{min-width:130px;max-width:180px;}
+.c-task{min-width:90px;max-width:130px;}
 .c-act{width:34px;text-align:center;}
 .proj-name{font-weight:500;font-size:12.5px;word-break:break-word;margin-bottom:3px;}
 .proj-labels{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;}
@@ -1108,7 +1108,7 @@ function renderRR(){
       +'<th class="c-proj">Project</th><th class="c-pri">P</th><th class="c-pic">PIC</th>'
       +'<th class="c-sin">Stand-in</th><th class="c-status">Status</th>'
       +'<th class="c-ela">Status Elaboration</th><th class="c-task">Noelle\'s Task</th>'
-      +'<th style="min-width:80px;max-width:100px;font-size:10px">Sheet Match</th><th class="c-act"></th>'
+      +'<th style="min-width:60px;max-width:75px;font-size:10px">Sheet Match</th><th class="c-act"></th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table>';
   }catch(e){dbg('renderRR: '+e.message,'err');}
 }
@@ -1641,8 +1641,7 @@ function enterApp(){
   const pwSec=document.getElementById('setup-pw-section');
   if(!unlocked){if(pwSec)pwSec.style.display='';document.getElementById('setup-overlay').style.display='';setTimeout(()=>document.getElementById('inp-pw')?.focus(),50);return;}
   if(!S.clientId){S.clientId=xorDec(ENC.cid,'shopee');S.clientSecret=xorDec(ENC.csec,'shopee');S.claudeKey=xorDec(ENC.akey,'shopee');lsSave();}
-  if(S.rr.length)renderAll();
-  if(tokenValid()){document.getElementById('setup-overlay').style.display='none';}
+  if(tokenValid()){enterApp();}
   else{if(pwSec)pwSec.style.display='none';document.getElementById('setup-overlay').style.display='';}
 })();
 </script>
