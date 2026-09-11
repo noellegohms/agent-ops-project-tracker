@@ -1612,13 +1612,10 @@ function enterApp(){
             lsLoad();renderAll();
             addLog('Auto-synced from Drive (newer data found) ✓','ok');
             document.getElementById('log-panel').style.display='';
-          }else{
-            addLog('Drive in sync with local data ✓','ok');
-            document.getElementById('log-panel').style.display='';
           }
         }else if(localSaved>driveModified+5000){
           // Local is newer — push to Drive so other devices can pick it up
-          addLog('Local data is newer — saving to Drive…','info');
+          addLog('Local data is newer — saving to Drive ✓','ok');
           document.getElementById('log-panel').style.display='';
           saveToDrive(true);
         }else{
