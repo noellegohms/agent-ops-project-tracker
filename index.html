@@ -1580,10 +1580,11 @@ async function syncToTodoist(){
   if(btn)btn.textContent=origLabel;
 }
 function enterApp(){
+  console.log('TRACKER-v8');
   document.getElementById('setup-overlay').style.display='none';
   renderAll();
   // Auto-pull from Drive if Drive has newer data than local (handles cross-device sync)
-  const _safetyTimer=setTimeout(()=>{addLog('Drive check timed out','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);},12000);
+  const _safetyTimer=setTimeout(()=>{addLog('Drive check timed out','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);},3000);
   (async()=>{
     try{
       addLog('Checking Drive sync…','info');document.getElementById('log-panel').style.display='';
