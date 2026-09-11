@@ -902,7 +902,7 @@ async function saveToDrive(silent){
     if(!fileId){
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
       const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
-      console.log('DIAG:drive-fetch-done');const data=await res.json();console.log('DIAG:files='+data?.files?.length);
+      const data=await res.json();
       if(data.files&&data.files.length)fileId=data.files[0].id;
     }
 
@@ -1580,14 +1580,14 @@ async function syncToTodoist(){
   if(btn)btn.textContent=origLabel;
 }
 function enterApp(){
-  console.log('TRACKER-v10');
+  console.log('TRACKER-v9');
   document.getElementById('setup-overlay').style.display='none';
   renderAll();
   // Auto-pull from Drive if Drive has newer data than local (handles cross-device sync)
-  const _safetyTimer=setTimeout(()=>{console.log('DIAG:safety-timer-fired');addLog('Drive check timed out','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);},3000);
+  const _safetyTimer=setTimeout(()=>{addLog('Drive check timed out','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);},3000);
   (async()=>{
     try{
-      addLog('Checking Drive sync…','info');document.getElementById('log-panel').style.display='';console.log('DIAG:token-valid='+tokenValid()+' hasRefresh='+!!S.refreshToken);
+      addLog('Checking Drive sync…','info');document.getElementById('log-panel').style.display='';
       let tok;
       if(tokenValid()){tok=S.token;}
       else if(S.refreshToken){
@@ -1596,7 +1596,7 @@ function enterApp(){
       }else{addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
       const _driveQ='https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,modifiedTime)';
-      console.log('DIAG:drive-fetch-start');const res=await Promise.race([fetch(_driveQ,{headers:{Authorization:'Bearer '+tok}}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('Drive check timed out after 8s')),8000))]);
+      const res=await Promise.race([fetch(_driveQ,{headers:{Authorization:'Bearer '+tok}}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('Drive check timed out after 8s')),8000))]);
       const data=await res.json();
       if(data.files&&data.files.length){
         const fileId=data.files[0].id;
@@ -1623,8 +1623,8 @@ function enterApp(){
       }else{
         addLog('No Drive backup file found','info');
       }
-    }catch(e){dbg('auto-restore: '+e.message,'err');addLog('Drive check failed: '+e.message,'err');document.getElementById('log-panel').style.display='';}
-    console.log('DIAG:iife-complete');clearTimeout(_safetyTimer);
+    }catch(e){console.log('DIAG:catch='+e.message);dbg('auto-restore: '+e.message,'err');addLog('Drive check failed: '+e.message,'err');document.getElementById('log-panel').style.display='';}
+    clearTimeout(_safetyTimer);
     if(!S.lastSync)doSync(false);
   })();
 }
