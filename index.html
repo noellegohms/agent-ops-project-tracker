@@ -914,6 +914,14 @@ async function saveToDrive(silent){
     let r;
     if(fileId){
       r=await fetch('https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?uploadType=multipart',{method:'PATCH',headers:{Authorization:'Bearer '+tok},body:form});
+      if(r.status===404){
+        S.driveFileId=null;fileId=null;
+        const newMeta=JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json',parents:['appDataFolder']});
+        const newForm=new FormData();
+        newForm.append('metadata',new Blob([newMeta],{type:'application/json'}));
+        newForm.append('file',blob);
+        r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+tok},body:newForm});
+      }
     }else{
       r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+tok},body:form});
     }
