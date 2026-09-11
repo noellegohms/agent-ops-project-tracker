@@ -1594,7 +1594,7 @@ function enterApp(){
       }else{addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
       const _ctrl=new AbortController();const _t=setTimeout(()=>_ctrl.abort(),8000);
-      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,modifiedTime)',{headers:{Authorization:'Bearer '+tok}},signal:_ctrl.signal});
+      const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,modifiedTime)',{headers:{Authorization:'Bearer '+tok},signal:_ctrl.signal});
       clearTimeout(_t);
       const data=await res.json();
       if(data.files&&data.files.length){
