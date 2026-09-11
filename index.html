@@ -84,7 +84,7 @@ td{padding:9px 12px;vertical-align:top;}
 .c-pic{width:55px;}.c-sin{width:80px;}.c-status{width:88px;}
 .c-ela{min-width:439px;max-width:619px;width:499px;}
 .c-task{min-width:130px;max-width:180px;}
-.c-ai{width:72px;}.c-act{width:34px;text-align:center;}
+.c-act{width:34px;text-align:center;}
 .proj-name{font-weight:500;font-size:12.5px;word-break:break-word;margin-bottom:3px;}
 .proj-labels{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;}
 .proj-label{display:inline-block;font-size:10px;font-weight:500;padding:1px 6px;border-radius:3px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);white-space:nowrap;}
@@ -229,10 +229,6 @@ td{padding:9px 12px;vertical-align:top;}
         <div class="filter-group">
           <span class="pill" id="pill-task" onclick="toggleBoolFilter('task',this)">Yes</span>
         </div>
-        <div class="filter-sep"></div>
-        <span class="filter-label">AI Pot.</span>
-        <div class="filter-group">
-          <span class="pill" id="pill-ai" onclick="toggleBoolFilter('ai',this)">Yes</span>
         </div>
         <div class="filter-right">
           <button class="btn btn-secondary btn-sm" onclick="openModal(-1)">+ New project</button>
@@ -436,7 +432,7 @@ const S={
   rr:[],auto:[],scope:[],autoLocal:[],
   edits:{},elab:{},autoEdits:{},autoDeleted:[],scopeEdits:{},
   lastSync:null,log:[],syncing:false,editRow:null,tab:'rr',
-  filterTask:false,filterAi:false,
+  filterTask:false,
   activeF:{status:new Set(),pri:new Set(),pic:new Set(),type:new Set(),cat:new Set()},
   _pkceVerifier:null,
   sourceRows:[],directMatches:{},uncertainMatches:[],unmappedSource:[],mapJudgements:{},extraMappings:{},
@@ -1014,12 +1010,10 @@ function renderTaskHtml(text,rowIdx){
 
 function effectivePic(i){const e=S.edits[i]||{};return e.pic!==undefined?e.pic:String(S.rr[i]?.[C.PIC]||'');}
 function effectiveTask(i){const e=S.edits[i]||{};return e.task!==undefined?e.task:String(S.rr[i]?.[C.TASK]||'');}
-function effectiveAi(i){return String(S.rr[i]?.[C.AI]||'');}
 
 function toggleBoolFilter(key,el){
   if(key==='task')S.filterTask=!S.filterTask;
-  else if(key==='ai')S.filterAi=!S.filterAi;
-  el.classList.toggle('on',key==='task'?S.filterTask:S.filterAi);
+  el.classList.toggle('on',S.filterTask);
   renderRR();
 }
 const STATUS_ORDER=['Ongoing','To Start','Paused','Closed','Deprioritised'];
@@ -1039,9 +1033,8 @@ function buildFilters(){
   renderPills('f-type',[...TYPE_ORDER.filter(t=>dataType.has(t)),...[...dataType].filter(t=>!TYPE_ORDER.includes(t))],'type');
   const dataCat=new Set(S.rr.map((_,i)=>{const e=S.edits[i]||{};return(e.cat!==undefined?e.cat:S.rr[i][C.CAT])||'';}).filter(Boolean));
   renderPills('f-cat',[...CAT_ORDER.filter(c=>dataCat.has(c)),...[...dataCat].filter(c=>!CAT_ORDER.includes(c))],'cat');
-  const pt=document.getElementById('pill-task'),pa=document.getElementById('pill-ai');
+  const pt=document.getElementById('pill-task');
   if(pt)pt.classList.toggle('on',S.filterTask);
-  if(pa)pa.classList.toggle('on',S.filterAi);
 }
 function renderPills(id,vals,fk){
   const el=document.getElementById(id);if(!el)return;
@@ -1061,7 +1054,6 @@ function renderRR(){
       const status=normalizeStatus(e.status!==undefined?e.status:row[C.STATUS]);
       const pic=effectivePic(i);
       const task=effectiveTask(i);
-      const ai=effectiveAi(i);
       const effType=e.type!==undefined?e.type:row[C.TYPE]||'';
       const effCat=e.cat!==undefined?e.cat:row[C.CAT]||'';
       if(S.activeF.type.size&&!S.activeF.type.has(effType))return false;
@@ -1071,7 +1063,6 @@ function renderRR(){
       if(S.activeF.pri.size&&!S.activeF.pri.has(effPri))return false;
       if(S.activeF.pic.size&&!S.activeF.pic.has(pic))return false;
       if(S.filterTask&&!task.trim())return false;
-      if(S.filterAi&&ai.trim().toLowerCase()==='no use case')return false;
       if(q&&![row[C.PROJ],row[C.CAT],row[C.TYPE],pic].join(' ').toLowerCase().includes(q))return false;
       return true;
     });
@@ -1089,7 +1080,6 @@ function renderRR(){
         const sin=String((e.sin!==undefined?e.sin:row[C.SIN])||'');
         const status=String((e.status!==undefined?e.status:row[C.STATUS])||'');
         const task=effectiveTask(i);
-        const ai=effectiveAi(i);
         const effType=e.type!==undefined?e.type:row[C.TYPE]||'';
         const effCat=e.cat!==undefined?e.cat:row[C.CAT]||'';
         const labels=[effType,effCat].filter(Boolean).map(v=>'<span class="proj-label">'+esc(v)+'</span>').join('');
@@ -1105,7 +1095,7 @@ function renderRR(){
           +'<td class="c-status">'+(status?'<span class="badge '+statusClass(status)+'">'+esc(normalizeStatus(status))+'</span>':'')+'</td>'
           +'<td class="c-ela">'+elabHtml+'</td>'
           +'<td class="c-task">'+renderTaskHtml(task,i)+'</td>'
-          +'<td class="c-ai"><span style="font-size:11.5px;color:var(--text-muted)">'+esc(ai)+'</span></td>'
+          
           +renderSheetMatchCell(i)
           +'<td class="c-act"><button class="edit-btn" onclick="openModal('+i+')" title="Edit">✎</button></td>'
           +'</tr>';
@@ -1118,7 +1108,7 @@ function renderRR(){
       +'<th class="c-proj">Project</th><th class="c-pri">P</th><th class="c-pic">PIC</th>'
       +'<th class="c-sin">Stand-in</th><th class="c-status">Status</th>'
       +'<th class="c-ela">Status Elaboration</th><th class="c-task">Noelle\'s Task</th>'
-      +'<th class="c-ai">AI Pot.</th><th style="min-width:80px;max-width:100px;font-size:10px">Sheet Match</th><th class="c-act"></th>'
+      +'<th style="min-width:80px;max-width:100px;font-size:10px">Sheet Match</th><th class="c-act"></th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table>';
   }catch(e){dbg('renderRR: '+e.message,'err');}
 }
