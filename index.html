@@ -428,7 +428,7 @@ Output EXACTLY this structure — no exceptions:
 - [specific action item]
 **Risks**
 - [risk or blocker]
-RULES: Use ONLY these three headers with ** on both sides. 1-3 bullet points per section starting with "- ". Max 20 words per bullet. No intro or conclusion. If nothing relevant, write "- None". Focus ONLY on information explicitly about this specific project — ignore any content about other projects.`;
+RULES: Use ONLY these three headers with ** on both sides. 1-3 bullet points per section starting with "- ". Max 20 words per bullet. No intro or conclusion. If nothing relevant, write "- None".`;
 
 const S={
   clientId:null,clientSecret:null,claudeKey:null,
@@ -692,17 +692,11 @@ function statusClass(s){
 function priClass(p){return({'p1':'p1','p2':'p2','p3':'p3'}[String(p||'').toLowerCase().replace(/[^a-z0-9]/g,'')])||'p3';}
 
 function matchCtx(name,emails,events){
-  const words=String(name||'').toLowerCase().split(/\s+/).filter(w=>w.length>=3);
+  // Digest emails cover all projects — pass them all through without keyword filtering.
+  // Calendar events are general so still filter by project name keywords (>=2 chars).
+  const words=String(name||'').toLowerCase().split(/\s+/).filter(w=>w.length>=2);
   const score=t=>words.filter(w=>String(t).toLowerCase().includes(w)).length;
-  // Filter email body: extract only paragraphs that mention this project
-  const filteredEmails=emails.map(em=>{
-    if(!words.length)return em;
-    const paras=em.body.split(/\n{2,}/);
-    const relevant=paras.filter(p=>score(p)>0);
-    if(!relevant.length)return null;
-    return{...em,body:relevant.join('\n\n')};
-  }).filter(Boolean);
-  return{filteredEmails,filteredEvents:events.filter(e=>score(e.summary)>0)};
+  return{filteredEmails:emails,filteredEvents:events.filter(e=>score(e.summary)>0)};
 }
 
 // ── AI Synthesis ──────────────────────────────────────────────────────────────
@@ -711,30 +705,23 @@ function matchCtx(name,emails,events){
 async function synthesizeElab(row,emails,events,colL,colW,edits){
   try{
     const notes=(edits?.notes||'').trim();
-    const notesTs=edits?.notesTs||0;
-    const lastSyncTs=S.lastSync?new Date(S.lastSync).getTime():0;
-    const notesArePrimary=!!(notes&&notesTs&&notesTs>lastSyncTs);
-    const colLt=String(colL||'').trim(),colWt=String(colW||'').trim();
+    const colWt=String(colW||'').trim();
     const pri=String((edits?.pri!==undefined?edits.pri:row[C.PRI])||'');
     const pic=String((edits?.pic!==undefined?edits.pic:row[C.PIC])||'');
     const sin=String((edits?.sin!==undefined?edits.sin:row[C.SIN])||'');
     const status=String((edits?.status!==undefined?edits.status:row[C.STATUS])||'');
     const{filteredEmails,filteredEvents}=matchCtx(row[C.PROJ]||'',emails,events);
-    const hasSignals=colWt||colLt||filteredEmails.length||filteredEvents.length||notes;
+    const hasSignals=colWt||filteredEmails.length||filteredEvents.length||notes;
     if(!hasSignals&&!status)return null;
     let ctx='Project: '+(row[C.PROJ]||'');
     if(pri)ctx+='\nPriority: '+pri;
     if(pic)ctx+='\nPIC: '+pic;
     if(sin)ctx+='\nStand-in: '+sin;
     if(status)ctx+='\nStatus: '+normalizeStatus(status);
-    if(notesArePrimary){
-      ctx+='\n\nAdditional Context (PRIMARY — entered after last sync, overrides Weekly Update):\n'+notes;
-      if(colWt)ctx+='\n\nWeekly Update (secondary — use only if primary context above is incomplete):\n'+colWt;
-      if(colLt)ctx+='\n\nStatus Remarks (tertiary — use only if sources above are absent):\n'+colLt;
-    }else{
-      if(colWt)ctx+='\n\nWeekly Update (most recent — treat as primary source):\n'+colWt;
-      if(colLt)ctx+='\n\nStatus Remarks (use only if Weekly Update is absent or incomplete):\n'+colLt;
-      if(notes)ctx+='\n\nAdditional context (supplementary):\n'+notes;
+    if(notes){
+      ctx+='\n\nNotes (PRIMARY — use as sole written source; if Weekly Update contradicts, ignore Weekly Update):\n'+notes;
+    }else if(colWt){
+      ctx+='\n\nWeekly Update:\n'+colWt;
     }
     if(filteredEmails.length)ctx+='\n\nEmail digest:\n'+filteredEmails.map(em=>'--- '+em.subject+' ---\n'+em.body).join('\n\n');
     if(filteredEvents.length)ctx+='\n\nCalendar events:\n'+filteredEvents.map(ev=>'- '+ev.summary+' ('+ev.start+')').join('\n');
