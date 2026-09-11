@@ -719,8 +719,9 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
     if(sin)ctx+='\nStand-in: '+sin;
     if(status)ctx+='\nStatus: '+normalizeStatus(status);
     if(notes){
-      ctx+='\n\nNotes (PRIMARY — use as sole written source; if Weekly Update contradicts, ignore Weekly Update):\n'+notes;
-    }else if(colWt){
+      ctx+='\n\nNotes (written by owner — takes precedence over Weekly Update on any specific fact that contradicts):\n'+notes;
+    }
+    if(colWt){
       ctx+='\n\nWeekly Update:\n'+colWt;
     }
     if(filteredEmails.length)ctx+='\n\nEmail digest:\n'+filteredEmails.map(em=>'--- '+em.subject+' ---\n'+em.body).join('\n\n');
