@@ -1586,7 +1586,12 @@ function enterApp(){
   (async()=>{
     try{
       addLog('Checking Drive sync…','info');document.getElementById('log-panel').style.display='';
-      const tok=await ensureToken();
+      let tok;
+      if(tokenValid()){tok=S.token;}
+      else if(S.refreshToken){
+        try{const t=await doRefreshToken();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;lsSave();tok=S.token;}
+        catch(e){addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
+      }else{addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
       const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,modifiedTime)',{headers:{Authorization:'Bearer '+tok}});
       const data=await res.json();
