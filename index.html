@@ -1600,8 +1600,10 @@ function enterApp(){
           // Local is newer — push to Drive so other devices can pick it up
           saveToDrive(true);
         }
+      }else{
+        addLog('No Drive backup file found','info');
       }
-    }catch(e){dbg('auto-restore: '+e.message,'err');}
+    }catch(e){dbg('auto-restore: '+e.message,'err');addLog('Drive check failed: '+e.message,'err');document.getElementById('log-panel').style.display='';}
     if(!S.lastSync)doSync(false);
   })();
 }
