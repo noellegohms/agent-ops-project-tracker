@@ -623,7 +623,9 @@ function matchSourceToTracker(sourceRows){
       if(usedTrackerIdxs.has(bestIdx)){anomalies.push({srcName:srcRow.projName,trackerName:String(S.rr[bestIdx][C.PROJ]||'').trim()});}
       else{directMatches[bestIdx]=srcRow;usedTrackerIdxs.add(bestIdx);}
     }else if(bestScore>=0.35&&bestIdx!==-1){
-      uncertain.push({trackerIdx:bestIdx,trackerName:String(S.rr[bestIdx][C.PROJ]||'').trim(),srcRow});
+      const prevRejected=Object.keys(S.mapJudgements).some(k=>k.endsWith('|'+srcRow.projName)&&S.mapJudgements[k]==='reject');
+      if(prevRejected)unmapped.push(srcRow.projName);
+      else uncertain.push({trackerIdx:bestIdx,trackerName:String(S.rr[bestIdx][C.PROJ]||'').trim(),srcRow});
     }else{
       unmapped.push(srcRow.projName);
     }
@@ -719,9 +721,8 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
     if(sin)ctx+='\nStand-in: '+sin;
     if(status)ctx+='\nStatus: '+normalizeStatus(status);
     if(notes){
-      ctx+='\n\nNotes (written by owner — takes precedence over Weekly Update on any specific fact that contradicts):\n'+notes;
-    }
-    if(colWt){
+      ctx+='\n\nNotes (PRIMARY — use as sole written source; if Weekly Update contradicts, ignore Weekly Update):\n'+notes;
+    }else if(colWt){
       ctx+='\n\nWeekly Update:\n'+colWt;
     }
     if(filteredEmails.length)ctx+='\n\nEmail digest:\n'+filteredEmails.map(em=>'--- '+em.subject+' ---\n'+em.body).join('\n\n');
