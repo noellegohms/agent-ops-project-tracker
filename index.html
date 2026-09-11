@@ -1607,9 +1607,9 @@ function enterApp(){
         }else if(localSaved>driveModified+5000){
           // Local is newer — push to Drive so other devices can pick it up
           saveToDrive(true);
+        }
         }else{
           addLog('Drive in sync with local data ✓','ok');
-        }
       }
     }catch(e){dbg('auto-restore: '+e.message,'err');}
     if(!S.lastSync)doSync(false);
