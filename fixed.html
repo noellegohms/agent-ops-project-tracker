@@ -903,7 +903,7 @@ async function saveToDrive(silent){
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
       const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id)',{headers:{Authorization:'Bearer '+tok}});
       const data=await res.json();
-      if(data.files&&data.files.length)fileId=data.files[0].id;
+      if(data.files&&data.files.length){fileId=data.files[0].id;for(let _i=1;_i<data.files.length;_i++){fetch('https://www.googleapis.com/drive/v3/files/'+data.files[_i].id,{method:'DELETE',headers:{Authorization:'Bearer '+tok}});}}
     }
 
     const meta=fileId?JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json'}):JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json',parents:['appDataFolder']});
