@@ -464,6 +464,9 @@ function lsSave(){
     debouncedDriveSave();
   }catch(e){dbg('lsSave: '+e.message,'err');}
 }
+function saveTokenOnly(){
+  try{const _ls=JSON.parse(localStorage.getItem(LS_KEY)||'{}');_ls.token=S.token;_ls.tokenExp=S.tokenExp;_ls.refreshToken=S.refreshToken;localStorage.setItem(LS_KEY,JSON.stringify(_ls));}catch(e){}
+}
 function lsLoad(){
   try{
     const d=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
@@ -1591,7 +1594,7 @@ function enterApp(){
       let tok;
       if(tokenValid()){tok=S.token;}
       else if(S.refreshToken){
-        try{const t=await doRefreshToken();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;lsSave();tok=S.token;}
+        try{const t=await doRefreshToken();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;saveTokenOnly();tok=S.token;}
         catch(e){addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
       }else{addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
