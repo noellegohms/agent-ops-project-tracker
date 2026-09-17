@@ -1604,23 +1604,18 @@ function enterApp(){
       const data=await res.json();
       if(data.files&&data.files.length){
         const fileId=data.files[0].id;
-        const driveModified=new Date(data.files[0].modifiedTime).getTime();
         const localSaved=S.lastSaved||0;
-        if(driveModified>localSaved+5000){
-          const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
-          const txt=await r.text();
-          const parsed=JSON.parse(txt);
-          const driveSaved=parsed.lastSaved||driveModified;
-          if(driveSaved>localSaved){
-            localStorage.setItem(LS_KEY,txt);
-            lsLoad();renderAll();
-            addLog('Auto-synced from Drive (newer data found) ✓','ok');
-            document.getElementById('log-panel').style.display='';
-          }else{
-            addLog('Drive in sync with local data ✓','ok');
-          }
-        }else if(localSaved>driveModified+5000){
-          // Local is newer — push to Drive so other devices can pick it up
+        // Always fetch Drive content to compare actual data timestamps — avoids Drive modifiedTime vs lastSaved mismatch
+        const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
+        const driveText=await r.text();
+        const parsed=JSON.parse(driveText);
+        const driveSaved=parsed.lastSaved||0;
+        if(driveSaved>localSaved+5000){
+          localStorage.setItem(LS_KEY,driveText);
+          lsLoad();renderAll();
+          addLog('Auto-synced from Drive (newer data found) ✓','ok');
+          document.getElementById('log-panel').style.display='';
+        }else if(localSaved>driveSaved+5000){
           addLog('Local data is newer — saving to Drive ✓','ok');
           document.getElementById('log-panel').style.display='';
           saveToDrive(true);
