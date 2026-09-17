@@ -1587,7 +1587,7 @@ function enterApp(){
   const _safetyTimer=setTimeout(()=>{addLog('Drive check timed out','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);},3000);
   (async()=>{
     try{
-      addLog('Checking Drive sync…','info');document.getElementById('log-panel').style.display='';
+      addLog('Checking Drive sync…','info');
       let tok;
       if(tokenValid()){tok=S.token;}
       else if(S.refreshToken){
@@ -1614,7 +1614,6 @@ function enterApp(){
             document.getElementById('log-panel').style.display='';
           }else{
             addLog('Drive in sync with local data ✓','ok');
-            document.getElementById('log-panel').style.display='';
           }
         }else if(localSaved>driveModified+5000){
           // Local is newer — push to Drive so other devices can pick it up
@@ -1623,7 +1622,6 @@ function enterApp(){
           saveToDrive(true);
         }else{
           addLog('Drive in sync with local data ✓','ok');
-          document.getElementById('log-panel').style.display='';
         }
       }else{
         addLog('No Drive backup file found','info');
