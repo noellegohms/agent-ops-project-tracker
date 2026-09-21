@@ -424,7 +424,7 @@ Output EXACTLY this structure — no exceptions:
 - [specific action item]
 **Risks**
 - [risk or blocker]
-RULES: Use ONLY these three headers with ** on both sides. 1-3 bullet points per section starting with "- ". Max 20 words per bullet. No intro or conclusion. Base every bullet STRICTLY on the provided context — do NOT infer or generalise beyond what is explicitly stated. If the context does not clearly support a bullet, write "- None".`;
+RULES: Use ONLY these three headers with ** on both sides. 1-3 bullet points per section starting with "- ". Max 20 words per bullet. No intro or conclusion. Base every bullet STRICTLY on the provided context — do NOT infer or generalise beyond what is explicitly stated. If the context does not clearly support a bullet, write "- None". CALENDAR EVENTS: judge relevance by intent, not shared words — read the project name, status, notes and tasks together, then only cite an event whose title or description is clearly about this specific project's actual work. A generic team sync, unrelated 1:1, or company-wide event does not count just because it shares a word with the project name.`;
 
 const S={
   clientId:null,clientSecret:null,claudeKey:null,
@@ -658,7 +658,7 @@ async function fetchCalendar(){
   const tmax=new Date(Date.now()+7*86400000).toISOString();
   try{
     const d=await gfetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin='+encodeURIComponent(tmin)+'&timeMax='+encodeURIComponent(tmax)+'&singleEvents=true&orderBy=startTime&maxResults=50');
-    return(d.items||[]).map(e=>({summary:e.summary||'',start:e.start?.dateTime?.slice(0,10)||e.start?.date||''}));
+    return(d.items||[]).map(e=>({summary:e.summary||'',description:e.description||'',start:e.start?.dateTime?.slice(0,10)||e.start?.date||''}));
   }catch(e){addLog('Calendar: '+e.message,'err');return [];}
 }
 
@@ -693,11 +693,12 @@ function statusClass(s){
 function priClass(p){return({'p1':'p1','p2':'p2','p3':'p3'}[String(p||'').toLowerCase().replace(/[^a-z0-9]/g,'')])||'p3';}
 
 function matchCtx(name,emails,events){
-  // Filter both emails and calendar events by project name keywords (>=2 chars).
+  // Emails still pre-filtered by keyword. Calendar events pass through unfiltered —
+  // the AI judges relevance itself from full project context + event title/description (see ELAB_SYSTEM).
   const words=String(name||'').toLowerCase().split(/\s+/).filter(w=>w.length>=2);
   const score=t=>words.filter(w=>String(t).toLowerCase().includes(w)).length;
   const emailScore=em=>score(em.subject+' '+(em.body||''));
-  return{filteredEmails:emails.filter(em=>emailScore(em)>0),filteredEvents:events.filter(e=>score(e.summary)>0)};
+  return{filteredEmails:emails.filter(em=>emailScore(em)>0),filteredEvents:events};
 }
 
 // ── AI Synthesis ──────────────────────────────────────────────────────────────
@@ -724,7 +725,7 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
     }else if(colWt){
       ctx+='\n\nWeekly Update:\n'+colWt;
     }
-    if(filteredEvents.length)ctx+='\n\nCalendar events:\n'+filteredEvents.map(ev=>'- '+ev.summary+' ('+ev.start+')').join('\n');
+    if(filteredEvents.length)ctx+='\n\nCalendar events (all events in range — judge which, if any, relate to this project):\n'+filteredEvents.map(ev=>'- '+ev.summary+(ev.description?' | '+ev.description:'')+' ('+ev.start+')').join('\n');
     const taskText=String((edits?.task!==undefined?edits.task:row[C.TASK])||'').trim();
     const checkedIdxs=edits?.checkedTasks||[];
     if(taskText){
