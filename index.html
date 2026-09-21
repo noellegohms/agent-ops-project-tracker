@@ -654,12 +654,18 @@ async function fetchEmails(){
     })).filter(e=>e.body);
   }catch(e){addLog('Gmail: '+e.message,'err');return [];}
 }
+const CALENDAR_IDS=['primary','noelle.gohms@shopee.com'];
 async function fetchCalendar(){
   const tmin=new Date(Date.now()-3*86400000).toISOString();
   const tmax=new Date(Date.now()+7*86400000).toISOString();
   try{
-    const d=await gfetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin='+encodeURIComponent(tmin)+'&timeMax='+encodeURIComponent(tmax)+'&singleEvents=true&orderBy=startTime&maxResults=50');
-    return(d.items||[]).map(e=>({summary:e.summary||'',description:e.description||'',start:e.start?.dateTime?.slice(0,10)||e.start?.date||''}));
+    const results=await Promise.all(CALENDAR_IDS.map(async cid=>{
+      try{
+        const d=await gfetch('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(cid)+'/events?timeMin='+encodeURIComponent(tmin)+'&timeMax='+encodeURIComponent(tmax)+'&singleEvents=true&orderBy=startTime&maxResults=50');
+        return(d.items||[]).map(e=>({summary:e.summary||'',description:e.description||'',start:e.start?.dateTime?.slice(0,10)||e.start?.date||''}));
+      }catch(e){addLog('Calendar ('+cid+'): '+e.message,'warn');return [];}
+    }));
+    return results.flat();
   }catch(e){addLog('Calendar: '+e.message,'err');return [];}
 }
 
