@@ -653,7 +653,7 @@ async function fetchEmails(){
     })).filter(e=>e.body);
   }catch(e){addLog('Gmail: '+e.message,'err');return [];}
 }
-const CALENDAR_IDS=['primary','noelle.gohms@shopee.com'];
+const CALENDAR_IDS=['noelle.gohms@shopee.com'];
 async function fetchCalendar(){
   const tmin=new Date(Date.now()-3*86400000).toISOString();
   const tmax=new Date(Date.now()+7*86400000).toISOString();
