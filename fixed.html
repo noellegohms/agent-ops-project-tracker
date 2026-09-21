@@ -900,7 +900,10 @@ function scheduleAutoSync(){
 }
 
 // ── Google Drive backup ───────────────────────────────────────────────────────
+let _savingToDrive=false,_saveDrivePending=null;
 async function saveToDrive(silent){
+  if(_savingToDrive){_saveDrivePending=silent;return;}
+  _savingToDrive=true;
   try{
     const tok=await ensureToken();
     const payload=localStorage.getItem(LS_KEY)||'{}';
@@ -944,6 +947,9 @@ async function saveToDrive(silent){
     document.getElementById('log-panel').style.display='';
     dbg('saveToDrive: '+e.message,'err');
     updateDriveStatus(false);
+  }finally{
+    _savingToDrive=false;
+    if(_saveDrivePending!==null){const p=_saveDrivePending;_saveDrivePending=null;saveToDrive(p);}
   }
 }
 
@@ -1620,8 +1626,13 @@ function enterApp(){
           addLog('Note: local data looked newer, but Drive is always loaded on open — click ☁ Save after reviewing if your local edits still need pushing','warn');
           document.getElementById('log-panel').style.display='';
         }
+        const _liveAuth={token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken};
         localStorage.setItem(LS_KEY,driveText);
-        lsLoad();renderAll();
+        lsLoad();
+        // Preserve this device's own live token — Drive's copy may be stale or from another device.
+        S.token=_liveAuth.token;S.tokenExp=_liveAuth.tokenExp;S.refreshToken=_liveAuth.refreshToken;
+        saveTokenOnly();
+        renderAll();
         if(driveSaved>localSaved+5000){
           addLog('Synced from Drive (newer data found) ✓','ok');
           document.getElementById('log-panel').style.display='';
