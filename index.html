@@ -1623,10 +1623,6 @@ function enterApp(){
         const driveSaved=parsed.lastSaved||0;
         // Drive is always the source of truth on open — always load it, never auto-push.
         // (Auto-pushing on open was the exact bug that overwrote another device's edits.)
-        if(localSaved>driveSaved+5000){
-          addLog('Note: local data looked newer, but Drive is always loaded on open — click ☁ Save after reviewing if your local edits still need pushing','warn');
-          document.getElementById('log-panel').style.display='';
-        }
         const _liveAuth={token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken};
         localStorage.setItem(LS_KEY,driveText);
         lsLoad();
