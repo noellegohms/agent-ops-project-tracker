@@ -724,7 +724,6 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
     }else if(colWt){
       ctx+='\n\nWeekly Update:\n'+colWt;
     }
-    if(filteredEmails.length)ctx+='\n\nEmail digest:\n'+filteredEmails.map(em=>'--- '+em.subject+' ---\n'+em.body).join('\n\n');
     if(filteredEvents.length)ctx+='\n\nCalendar events:\n'+filteredEvents.map(ev=>'- '+ev.summary+' ('+ev.start+')').join('\n');
     const taskText=String((edits?.task!==undefined?edits.task:row[C.TASK])||'').trim();
     const checkedIdxs=edits?.checkedTasks||[];
