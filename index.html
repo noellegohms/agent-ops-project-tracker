@@ -1622,9 +1622,10 @@ function enterApp(){
           addLog('Auto-synced from Drive (newer data found) ✓','ok');
           document.getElementById('log-panel').style.display='';
         }else if(localSaved>driveSaved+5000){
-          addLog('Local data is newer — saving to Drive ✓','ok');
+          // Do NOT auto-push — a blind overwrite here can destroy another device's
+          // edits that haven't reached Drive yet. Require explicit confirmation instead.
+          addLog('Local data looks newer than Drive — click ☁ Save above to push if you are sure (not auto-pushed, to avoid overwriting other devices)','warn');
           document.getElementById('log-panel').style.display='';
-          saveToDrive(true);
         }else{
           addLog('Drive in sync with local data ✓','ok');
         }
