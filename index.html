@@ -1616,11 +1616,8 @@ function enterApp(){
       const data=await res.json();
       if(data.files&&data.files.length){
         const fileId=data.files[0].id;
-        const localSaved=S.lastSaved||0;
         const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
         const driveText=await r.text();
-        const parsed=JSON.parse(driveText);
-        const driveSaved=parsed.lastSaved||0;
         // Drive is always the source of truth on open — always load it, never auto-push.
         // (Auto-pushing on open was the exact bug that overwrote another device's edits.)
         const _liveAuth={token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken};
@@ -1630,12 +1627,7 @@ function enterApp(){
         S.token=_liveAuth.token;S.tokenExp=_liveAuth.tokenExp;S.refreshToken=_liveAuth.refreshToken;
         saveTokenOnly();
         renderAll();
-        if(driveSaved>localSaved+5000){
-          addLog('Synced from Drive (newer data found) ✓','ok');
-          document.getElementById('log-panel').style.display='';
-        }else{
-          addLog('Loaded from Drive ✓','ok');
-        }
+        addLog('Loaded from Drive ✓','ok');
       }else{
         addLog('No Drive backup file found','info');
       }
