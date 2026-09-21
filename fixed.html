@@ -1610,23 +1610,23 @@ function enterApp(){
       if(data.files&&data.files.length){
         const fileId=data.files[0].id;
         const localSaved=S.lastSaved||0;
-        // Always fetch Drive content to compare actual data timestamps — avoids Drive modifiedTime vs lastSaved mismatch
         const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
         const driveText=await r.text();
         const parsed=JSON.parse(driveText);
         const driveSaved=parsed.lastSaved||0;
-        if(driveSaved>localSaved+5000){
-          localStorage.setItem(LS_KEY,driveText);
-          lsLoad();renderAll();
-          addLog('Auto-synced from Drive (newer data found) ✓','ok');
+        // Drive is always the source of truth on open — always load it, never auto-push.
+        // (Auto-pushing on open was the exact bug that overwrote another device's edits.)
+        if(localSaved>driveSaved+5000){
+          addLog('Note: local data looked newer, but Drive is always loaded on open — click ☁ Save after reviewing if your local edits still need pushing','warn');
           document.getElementById('log-panel').style.display='';
-        }else if(localSaved>driveSaved+5000){
-          // Do NOT auto-push — a blind overwrite here can destroy another device's
-          // edits that haven't reached Drive yet. Require explicit confirmation instead.
-          addLog('Local data looks newer than Drive — click ☁ Save above to push if you are sure (not auto-pushed, to avoid overwriting other devices)','warn');
+        }
+        localStorage.setItem(LS_KEY,driveText);
+        lsLoad();renderAll();
+        if(driveSaved>localSaved+5000){
+          addLog('Synced from Drive (newer data found) ✓','ok');
           document.getElementById('log-panel').style.display='';
         }else{
-          addLog('Drive in sync with local data ✓','ok');
+          addLog('Loaded from Drive ✓','ok');
         }
       }else{
         addLog('No Drive backup file found','info');
