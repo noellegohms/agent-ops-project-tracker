@@ -774,6 +774,10 @@ function deleteRow(i){
   }
   S.edits=reindex(S.edits);
   S.elab=reindex(S.elab);
+  // directMatches/uncertainMatches are also keyed by tracker row index — must reindex
+  // too, or a project can silently pick up another project's source-sheet row after deletion.
+  S.directMatches=reindex(S.directMatches);
+  S.uncertainMatches=S.uncertainMatches.filter(m=>m.trackerIdx!==i).map(m=>m.trackerIdx>i?{...m,trackerIdx:m.trackerIdx-1}:m);
   lsSave();
 }
 function deleteRowFromModal(){
