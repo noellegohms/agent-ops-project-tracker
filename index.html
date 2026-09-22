@@ -898,12 +898,6 @@ async function doSync(manual){
     S.syncing=false;renderAll();
   }
 }
-function scheduleAutoSync(){
-  const now=Date.now(),next=new Date(now);
-  next.setUTCHours(6,0,0,0);
-  if(next.getTime()<=now)next.setUTCDate(next.getUTCDate()+1);
-  setTimeout(()=>{doSync(false);scheduleAutoSync();},next.getTime()-now);
-}
 
 // ── Google Drive backup ───────────────────────────────────────────────────────
 let _savingToDrive=false,_saveDrivePending=null;
@@ -1653,7 +1647,6 @@ function enterApp(){
     for(const[k,v]of Object.entries(sysMaps)){if(JSON.stringify(S.extraMappings[k])!==JSON.stringify(v)){S.extraMappings[k]=v;changed=true;}}
     if(changed)lsSave();
   })();
-  scheduleAutoSync();
   document.getElementById('rr-filter-bar').addEventListener('click',function(e){
     const p=e.target.closest('.pill[data-fk]');
     if(p&&p.dataset.fk&&!p.dataset.fk.match(/^(task|ai)$/))toggleFilter(p.dataset.fk,p.dataset.val);
