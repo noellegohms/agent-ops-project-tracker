@@ -889,8 +889,9 @@ async function doSync(manual){
     addLog('Sync failed: '+e.message,'err');
     dbg('doSync: '+e.message,'err');
     setSyncState('err','Sync failed');
+  }finally{
+    S.syncing=false;renderAll();
   }
-  S.syncing=false;renderAll();
 }
 function scheduleAutoSync(){
   const now=Date.now(),next=new Date(now);
