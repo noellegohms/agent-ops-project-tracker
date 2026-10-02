@@ -254,8 +254,10 @@ td{padding:9px 12px;vertical-align:top;}
     </div>
     <div id="view-pic" style="display:none;">
       <div class="filter-bar">
-        <span style="font-size:11px;color:var(--text-muted)">Project allocation by PIC · Updates on every render</span>
+        <span style="font-size:11px;color:var(--text-muted)">Project allocation by PIC · Focus &amp; flags are AI-generated on demand</span>
+        <div class="filter-right"><span class="row-count" id="pic-synth-ts"></span><button class="btn btn-secondary btn-sm" id="pic-synth-btn" onclick="synthesisePics()">↻ Synthesise PIC focus</button></div>
       </div>
+      <div id="pic-team"></div>
       <div id="pic-table"></div>
     </div>
   </div>
@@ -437,6 +439,7 @@ const S={
   activeF:{status:new Set(),pri:new Set(),pic:new Set(),type:new Set(),cat:new Set()},
   _pkceVerifier:null,
   sourceRows:[],directMatches:{},uncertainMatches:[],unmappedSource:[],mapJudgements:{},extraMappings:{},
+  picSynth:null,
 };
 
 // Stale modal promise resolver — set by showStaleModal, called by option buttons
@@ -459,7 +462,7 @@ function lsSave(){
       edits:S.edits,elab:S.elab,autoEdits:S.autoEdits,autoDeleted:S.autoDeleted,
       scopeEdits:S.scopeEdits,lastSync:S.lastSync,driveFileId:S.driveFileId||null,
       sourceRows:S.sourceRows,directMatches:S.directMatches,uncertainMatches:S.uncertainMatches,
-      unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,extraMappings:S.extraMappings,
+      unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,extraMappings:S.extraMappings,picSynth:S.picSynth,
       lastSaved:S.lastSaved,
     }));
     debouncedDriveSave();
@@ -498,6 +501,7 @@ function lsLoad(){
     if(d.unmappedSource)S.unmappedSource=d.unmappedSource;
     if(d.mapJudgements)S.mapJudgements=d.mapJudgements;
     if(d.extraMappings)S.extraMappings=d.extraMappings;
+    if(d.picSynth)S.picSynth=d.picSynth;
     if(d.lastSaved)S.lastSaved=d.lastSaved;
   }catch(e){dbg('lsLoad: '+e.message,'err');}
 }
@@ -670,13 +674,13 @@ async function fetchCalendar(){
   }catch(e){addLog('Calendar: '+e.message,'err');return [];}
 }
 
-async function callClaude(system,userMsg){
+async function callClaude(system,userMsg,maxTokens){
   if(!S.claudeKey)return null;
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':S.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:CLAUDE_MODEL,max_tokens:300,system,messages:[{role:'user',content:userMsg}]})
+      body:JSON.stringify({model:CLAUDE_MODEL,max_tokens:maxTokens||300,system,messages:[{role:'user',content:userMsg}]})
     });
     const d=await r.json();
     if(!r.ok)throw new Error(d.error?.message||'API '+r.status);
@@ -1414,12 +1418,96 @@ function renderPic(){
           }).join('')
           +'</ul></td>';
       }).join('')
+      +'<td style="vertical-align:top;padding:8px 12px;min-width:340px;max-width:460px;">'+renderPicSynthCell(pic)+'</td>'
       +'</tr>';
   }).join('');
   wrap.innerHTML='<div class="generic-wrap"><table><thead><tr>'
     +'<th style="min-width:110px">PIC</th>'
     +STATUSES.map(s=>'<th><span class="badge '+statusClass(s)+'">'+esc(s)+'</span></th>').join('')
+    +'<th>Key Focus &amp; Flags</th>'
     +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+  renderPicTeam();
+}
+
+// ── PIC key-focus synthesis ───────────────────────────────────────────────────
+const PIC_FLAGS=[['workload','Workload'],['burnout','Burnout risk'],['focus_spread','Focus spread'],['mix','BAU vs initiatives']];
+const PIC_LEVEL={ok:['#2e7d32','#e8f5e9','OK'],watch:['#b26a00','#fff4e0','Watch'],high:['#c62828','#fdecea','High']};
+function renderPicSynthCell(pic){
+  const d=S.picSynth?.pics?.[pic];
+  if(!d)return '<span style="font-size:11.5px;color:var(--text-muted)">'+(S.picSynth?'No synthesis for this PIC — re-run.':'Click "Synthesise PIC focus" to generate.')+'</span>';
+  const li=a=>(a||[]).map(x=>'<li style="margin-bottom:2px;">'+esc(x)+'</li>').join('');
+  const ul=a=>'<ul style="margin:2px 0 6px;padding-left:16px;">'+li(a)+'</ul>';
+  const lbl=t=>'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">'+t+'</div>';
+  const flags=PIC_FLAGS.map(([k,name])=>{
+    const f=d.flags?.[k]||{};const lv=PIC_LEVEL[f.level]||PIC_LEVEL.ok;
+    return '<div style="margin-bottom:3px;"><span style="display:inline-block;min-width:34px;text-align:center;font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px;color:'+lv[0]+';background:'+lv[1]+';margin-right:6px;">'+lv[2]+'</span><b>'+name+':</b> '+esc(f.note||'—')+'</div>';
+  }).join('');
+  return '<div style="font-size:12px;line-height:1.5;color:var(--text-secondary);">'
+    +lbl('Key focus')+ul(d.focus)
+    +((d.dependencies||[]).length?lbl('Projects depending on them')+ul(d.dependencies):'')
+    +lbl('Flags')+'<div style="margin:2px 0 6px;">'+flags+'</div>'
+    +(d.suggestion?lbl('Suggestion')+'<div>'+esc(d.suggestion)+'</div>':'')
+    +'</div>';
+}
+function renderPicTeam(){
+  const box=document.getElementById('pic-team'),ts=document.getElementById('pic-synth-ts');if(!box)return;
+  const t=S.picSynth?.team;
+  if(ts)ts.textContent=S.picSynth?.ts?'Last synthesised '+new Date(S.picSynth.ts).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+  if(!t){box.innerHTML='';return;}
+  const li=a=>(a||[]).map(x=>'<li style="margin-bottom:3px;">'+esc(x)+'</li>').join('');
+  box.innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;font-size:12px;line-height:1.55;color:var(--text-secondary);">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:4px;">Team view</div>'
+    +(t.imbalance?'<div style="margin-bottom:6px;"><b>Workload balance:</b> '+esc(t.imbalance)+'</div>':'')
+    +((t.suggestions||[]).length?'<div><b>Other suggestions</b></div><ul style="margin:2px 0 0;padding-left:18px;">'+li(t.suggestions)+'</ul>':'')
+    +'</div>';
+}
+const PIC_SYSTEM=`You are an operations lead reviewing how work is spread across the PICs (people in charge) of a Returns & Refund agent-operations team. You get, per PIC, the projects they own (priority, status, type, category, stand-in, recent status/next steps/risks) and the tasks the team lead (Noelle) is tracking on those projects.
+Return ONLY valid JSON, no markdown fences, in exactly this shape:
+{"team":{"imbalance":"1-2 sentences comparing workload across PICs, naming who is heaviest and lightest","suggestions":["up to 5 concrete, team-level suggestions"]},"pics":{"<PIC name exactly as given>":{"focus":["2-4 bullets: what this PIC is mainly working on right now"],"dependencies":["0-3 bullets: projects/people/tasks that are blocked on or waiting for this PIC, with project name"],"flags":{"workload":{"level":"ok|watch|high","note":"max 18 words"},"burnout":{"level":"ok|watch|high","note":"max 18 words"},"focus_spread":{"level":"ok|watch|high","note":"max 18 words"},"mix":{"level":"ok|watch|high","note":"max 18 words"}},"suggestion":"one sentence, max 25 words"}}}
+Definitions: workload = active project count (Ongoing and To Start only; Paused/Deprioritised/Closed do not count) weighted by priority (P1 heavy), compared with the other PICs. burnout = many P1s at once, many pending tasks, risks or blockers piling up, no stand-in cover. focus_spread = projects of many different nature (types/categories) so the PIC context-switches. mix = skew towards BAU/operational work with few initiatives, or all initiatives with no BAU capacity — judge BAU vs initiative from the Type and Category labels.
+Base everything strictly on the data given; do not invent facts. Each bullet max 20 words. Use "D Mmm" for dates (e.g. 25 Sep). Keep PIC keys identical to the input.`;
+async function synthesisePics(){
+  const btn=document.getElementById('pic-synth-btn');
+  if(!S.claudeKey){alert('Add your Claude API key in Settings (⚙) first.');return;}
+  if(!S.rr.length){alert('No projects loaded yet.');return;}
+  btn.disabled=true;btn.textContent='Synthesising…';
+  try{
+    const byPic=new Map();
+    S.rr.forEach((row,i)=>{
+      const e=S.edits[i]||{};
+      const proj=normProjName(String(row[C.PROJ]||'').trim());if(!proj)return;
+      const pic=(effectivePic(i)||'').trim()||'(Unassigned)';
+      const status=normalizeStatus(e.status!==undefined?e.status:row[C.STATUS]);
+      const pri=String(e.pri!==undefined?e.pri:row[C.PRI]||'').trim();
+      const type=String(e.type!==undefined?e.type:row[C.TYPE]||'').trim();
+      const cat=String(e.cat!==undefined?e.cat:row[C.CAT]||'').trim();
+      const sin=String(e.sin!==undefined?e.sin:row[C.SIN]||'').trim();
+      const checked=e.checkedTasks||[];
+      const pending=[];String(effectiveTask(i)||'').split('\n').forEach((l,li)=>{const t=l.trim().replace(/^[-•]\s*/,'');if(t&&!checked.includes(li))pending.push(t);});
+      const elab=typeof e.elab==='string'?e.elab:(typeof S.elab[i]==='string'?S.elab[i]:'');
+      if(!byPic.has(pic))byPic.set(pic,[]);
+      byPic.get(pic).push({proj,pri,status,type,cat,sin,pending,elab});
+    });
+    let ctx='';
+    for(const[pic,list]of byPic){
+      const active=list.filter(p=>p.status==='Ongoing'||p.status==='To Start');
+      ctx+='\n=== PIC: '+pic+' ===\nActive projects: '+active.length+' (P1: '+active.filter(p=>/p1/i.test(p.pri)).length+') | Other (paused/deprioritised/closed): '+(list.length-active.length)+'\n';
+      list.forEach(p=>{
+        ctx+='- '+p.proj+' | '+(p.pri||'no priority')+' | '+(p.status||'no status')+' | Type: '+(p.type||'-')+' | Category: '+(p.cat||'-')+' | Stand-in: '+(p.sin||'NONE');
+        if(p.pending.length)ctx+='\n    Pending tasks: '+p.pending.join('; ');
+        if(p.elab&&p.status!=='Closed')ctx+='\n    Latest AI summary: '+p.elab.replace(/\s*\n\s*/g,' ').slice(0,420);
+        ctx+='\n';
+      });
+    }
+    const txt=await callClaude(PIC_SYSTEM,ctx,4000);
+    if(!txt)throw new Error('no response (check API key / log)');
+    const m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error('could not parse response');
+    const parsed=JSON.parse(m[0]);
+    S.picSynth={ts:Date.now(),team:parsed.team||null,pics:parsed.pics||{}};
+    lsSave();
+  }catch(e){addLog('PIC synthesis failed: '+e.message,'err');alert('PIC synthesis failed: '+e.message);}
+  btn.disabled=false;btn.textContent='↻ Synthesise PIC focus';
+  renderPic();
 }
 
 function renderSheetMatchCell(trackerIdx){
