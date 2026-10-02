@@ -207,7 +207,6 @@ td{padding:9px 12px;vertical-align:top;}
   </div>
   <div class="tabs">
     <div class="tab active" id="tab-rr" onclick="switchTab('rr')">RR Projects</div>
-    <div class="tab" id="tab-auto" onclick="switchTab('auto')">Automation Pipeline</div>
     <div class="tab" id="tab-scope" onclick="switchTab('scope')">Team Scope</div>
     <div class="tab" id="tab-pic" onclick="switchTab('pic')">PIC View</div>
   </div>
@@ -246,13 +245,6 @@ td{padding:9px 12px;vertical-align:top;}
         <div class="debug-panel-hdr"><span>Debug</span><button class="btn btn-ghost btn-xs" style="color:#9a9896" onclick="document.getElementById('debug-panel').style.display='none'">✕</button></div>
         <div class="debug-entries" id="debug-entries"></div>
       </div>
-    </div>
-    <div id="view-auto" style="display:none;">
-      <div class="filter-bar">
-        <span style="font-size:11px;color:var(--text-muted)">Click any cell to edit · Changes save locally · Sync does not affect this tab</span>
-        <div class="filter-right"><span class="row-count" id="auto-count"></span></div>
-      </div>
-      <div id="auto-table"></div>
     </div>
     <div id="view-scope" style="display:none;">
       <div class="filter-bar">
@@ -334,6 +326,7 @@ td{padding:9px 12px;vertical-align:top;}
     <div class="modal-divider"></div>
     <div class="modal-section-hdr">Context</div>
     <div class="modal-field">
+      <label class="modal-label">Key Details</label>
       <textarea class="modal-textarea notes" id="modal-notes" placeholder="Add any extra context for Claude to use when generating Status Elaboration."></textarea>
       <div class="notes-hint">If saved after the last sync, overrides Weekly Update as the primary synthesis source. Otherwise, supplements it.</div>
     </div>
@@ -1232,7 +1225,7 @@ function saveScopeCell(el){
 }
 
 function renderAll(){
-  try{buildFilters();renderRR();renderAuto();renderScope();if(S.lastSync)setSyncState('ok','Synced '+fmtTime(S.lastSync));}
+  try{buildFilters();renderRR();renderScope();if(S.lastSync)setSyncState('ok','Synced '+fmtTime(S.lastSync));}
   catch(e){dbg('renderAll: '+e.message,'err');}
 }
 
@@ -1380,7 +1373,7 @@ function closeModal(){document.getElementById('edit-modal').style.display='none'
 
 function switchTab(t){
   S.tab=t;
-  ['rr','auto','scope','pic'].forEach(id=>{
+  ['rr','scope','pic'].forEach(id=>{
     document.getElementById('view-'+id).style.display=id===t?'':'none';
     document.getElementById('tab-'+id).classList.toggle('active',id===t);
   });
