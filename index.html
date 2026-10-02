@@ -894,6 +894,8 @@ async function doSync(manual){
         }
       }
       addLog('Claude: synthesised '+n,'ok');
+      const frozen=S.rr.map((r,i)=>typeof S.edits[i]?.elab==='string'&&String(r[C.PROJ]||'').trim()?String(r[C.PROJ]).trim():null).filter(Boolean);
+      if(frozen.length)addLog(frozen.length+' project(s) have a manual Status Elaboration override, so the new AI text is not shown (open the project, clear the 3 override boxes and Save to release): '+frozen.join(', '),'info');
     }else{addLog('Claude: skipped (no API key)','info');}
 
     S.lastSync=new Date().toISOString();lsSave();
@@ -1270,6 +1272,7 @@ function openModal(rowIdx){
   document.getElementById('modal-elab-status').value=p.status;
   document.getElementById('modal-elab-nextsteps').value=p.nextsteps;
   document.getElementById('modal-elab-risks').value=p.risks;
+  S._elabShown=buildElabFromFields();
   document.getElementById('modal-resynth-msg').textContent='';
   document.getElementById('edit-modal').style.display='';
 }
@@ -1321,6 +1324,7 @@ async function resynthModal(){
         document.getElementById('modal-elab-status').value=p.status;
         document.getElementById('modal-elab-nextsteps').value=p.nextsteps;
         document.getElementById('modal-elab-risks').value=p.risks;
+        S._elabShown=buildElabFromFields();
         lsSave();msg.textContent='✓ Re-synthesised.';
       }else{msg.textContent='Project no longer found in tracker.';}
     }else{msg.textContent='Could not synthesise — check API key.';}
@@ -1370,7 +1374,8 @@ function saveModal(){
   const s=document.getElementById('modal-elab-status').value.trim();
   const ns=document.getElementById('modal-elab-nextsteps').value.trim();
   const r=document.getElementById('modal-elab-risks').value.trim();
-  if(s||ns||r)S.edits[i].elab=buildElabFromFields();else delete S.edits[i].elab;
+  if(!(s||ns||r))delete S.edits[i].elab;
+  else if(buildElabFromFields()!==S._elabShown)S.edits[i].elab=buildElabFromFields();
   lsSave();closeModal();buildFilters();renderRR();
 }
 function closeModal(){document.getElementById('edit-modal').style.display='none';S.editRow=null;}
