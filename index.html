@@ -448,9 +448,18 @@ function staleRemoveAll(){if(_staleResolve)_staleResolve('remove-all');}
 function staleHandleIndividually(){if(_staleResolve)_staleResolve('handle-individually');}
 
 let _driveSaveTimer=null;
+function restoreLocalBackup(){
+  const b=localStorage.getItem(LS_KEY+'-prevlocal');
+  if(!b){console.log('No local backup found');return;}
+  const live={token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken};
+  localStorage.setItem(LS_KEY,b);lsLoad();
+  S.token=live.token;S.tokenExp=live.tokenExp;S.refreshToken=live.refreshToken;
+  renderAll();saveToDrive(false);
+  console.log('Local backup restored and pushing to Drive');
+}
 function debouncedDriveSave(){
   clearTimeout(_driveSaveTimer);
-  _driveSaveTimer=setTimeout(()=>{if(tokenValid()||S.refreshToken)saveToDrive(true);},10000);
+  _driveSaveTimer=setTimeout(()=>{if(tokenValid()||S.refreshToken)saveToDrive(true);},3000);
 }
 function lsSave(){
   try{
@@ -1725,6 +1734,17 @@ function enterApp(){
         // Drive is always the source of truth on open — always load it, never auto-push.
         // (Auto-pushing on open was the exact bug that overwrote another device's edits.)
         const _liveAuth={token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken};
+        try{
+          const _prev=localStorage.getItem(LS_KEY);
+          if(_prev&&_prev!==driveText){
+            const pj=JSON.parse(_prev),dj=JSON.parse(driveText);
+            if((pj.lastSaved||0)>(dj.lastSaved||0)){
+              localStorage.setItem(LS_KEY+'-prevlocal',_prev);
+              addLog('⚠ This device had edits newer than Drive. They were backed up locally — run restoreLocalBackup() in the console to get them back.','warn');
+              document.getElementById('log-panel').style.display='';
+            }
+          }
+        }catch(e){}
         localStorage.setItem(LS_KEY,driveText);
         lsLoad();
         // Preserve this device's own live token — Drive's copy may be stale or from another device.
