@@ -234,7 +234,6 @@ td{padding:9px 12px;vertical-align:top;}
           <div class="search-wrap"><input class="search-input" id="rr-search" placeholder="Search…" oninput="renderRR()"></div>
           <span class="row-count" id="rr-count"></span>
         </div>
-        </div>
       </div>
       <div class="table-wrap" id="rr-table">
         <div class="empty"><h3>Not yet synced</h3><p>Click "Sync now" to load projects.</p></div>
@@ -333,10 +332,19 @@ td{padding:9px 12px;vertical-align:top;}
       <textarea class="modal-textarea" id="modal-task" placeholder="Enter tasks, one per line"></textarea>
     </div>
     <div class="modal-divider"></div>
-    <div class="modal-section-hdr">Additional Context for AI Synthesis</div>
+    <div class="modal-section-hdr">Context</div>
     <div class="modal-field">
       <textarea class="modal-textarea notes" id="modal-notes" placeholder="Add any extra context for Claude to use when generating Status Elaboration."></textarea>
       <div class="notes-hint">If saved after the last sync, overrides Weekly Update as the primary synthesis source. Otherwise, supplements it.</div>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Related Files</label>
+      <textarea class="modal-textarea" id="modal-files" placeholder="Links or names of files related to this project, one per line"></textarea>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Unrelated Projects</label>
+      <textarea class="modal-textarea" id="modal-unrelated" placeholder="Meetings or projects that are NOT related to this project, one per line"></textarea>
+      <div class="notes-hint">AI synthesis will ignore any calendar event, email or note that matches what is listed here.</div>
     </div>
     <div class="modal-divider"></div>
     <div class="modal-section-hdr">Status Elaboration Override <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--text-muted)">(leave blank to let AI generate)</span></div>
@@ -424,7 +432,7 @@ Output EXACTLY this structure — no exceptions:
 - [specific action item]
 **Risks**
 - [risk or blocker]
-RULES: Use ONLY these three headers with ** on both sides. 1-5 bullet points per section starting with "- ". Max 20 words per bullet. No intro or conclusion. Base every bullet STRICTLY on the provided context — do NOT infer or generalise beyond what is explicitly stated. If the context does not clearly support a bullet, write "- None". CALENDAR EVENTS: judge relevance by intent, not shared words — read the project name, status, notes and tasks together, then only cite an event whose title or description is clearly about this specific project's actual work. A generic team sync, unrelated 1:1, or company-wide event does not count just because it shares a word with the project name. PRIORITY: a specific, dated, relevant calendar event always takes priority over generic or vague milestone bullets — if one exists, it MUST be one of the Next Steps bullets (include its date), even if that means dropping a vaguer generic bullet to stay within the 1-5 limit. DATES: always write dates as "D Mmm" (e.g. "25 Sep"), never ISO format (e.g. never "2026-09-25") and never with a year unless the year is not the current one.`;
+RULES: Use ONLY these three headers with ** on both sides. 1-5 bullet points per section starting with "- ". Max 20 words per bullet. No intro or conclusion. Base every bullet STRICTLY on the provided context — do NOT infer or generalise beyond what is explicitly stated. If the context does not clearly support a bullet, write "- None". CALENDAR EVENTS: judge relevance by intent, not shared words — read the project name, status, notes and tasks together, then only cite an event whose title or description is clearly about this specific project's actual work. A generic team sync, unrelated 1:1, or company-wide event does not count just because it shares a word with the project name. PRIORITY: a specific, dated, relevant calendar event always takes priority over generic or vague milestone bullets — if one exists, it MUST be one of the Next Steps bullets (include its date), even if that means dropping a vaguer generic bullet to stay within the 1-5 limit. UNRELATED: if the context includes an "UNRELATED meetings/projects" list, treat every calendar event, email, note or task that matches or refers to an item on that list as belonging to a different project — exclude it entirely from all three sections, even if it seems relevant. DATES: always write dates as "D Mmm" (e.g. "25 Sep"), never ISO format (e.g. never "2026-09-25") and never with a year unless the year is not the current one.`;
 
 const S={
   clientId:null,clientSecret:null,claudeKey:null,
@@ -723,6 +731,7 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
     const{filteredEmails,filteredEvents}=matchCtx(row[C.PROJ]||'',emails,events);
     const hasSignals=colWt||filteredEmails.length||filteredEvents.length||notes;
     if(!hasSignals&&!status)return null;
+    const unrelated=(edits?.unrelated||'').trim();
     let ctx='Project: '+(row[C.PROJ]||'');
     if(pri)ctx+='\nPriority: '+pri;
     if(pic)ctx+='\nPIC: '+pic;
@@ -743,6 +752,7 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
       if(done.length)ctx+='\n\nNoelle\'s completed tasks (reflect in Status):\n'+done.map(t=>'- '+t).join('\n');
       if(pending.length)ctx+='\n\nNoelle\'s pending tasks (include in Next Steps):\n'+pending.map(t=>'- '+t).join('\n');
     }
+    if(unrelated)ctx+='\n\nUNRELATED meetings/projects (user-confirmed NOT part of this project — never cite or draw from anything matching these):\n'+unrelated.split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean).map(l=>'- '+l).join('\n');
     return await callClaude(ELAB_SYSTEM,ctx);
   }catch(e){dbg('synthesizeElab: '+e.message,'err');return null;}
 }
@@ -1236,7 +1246,7 @@ function openModal(rowIdx){
   if(isNew){
     document.getElementById('modal-title').textContent='New Project';
     document.getElementById('modal-sub').textContent='';
-    ['modal-proj','modal-type','modal-cat','modal-pri','modal-pic','modal-sin','modal-status','modal-task','modal-notes','modal-elab-status','modal-elab-nextsteps','modal-elab-risks'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    ['modal-proj','modal-type','modal-cat','modal-pri','modal-pic','modal-sin','modal-status','modal-task','modal-notes','modal-files','modal-unrelated','modal-elab-status','modal-elab-nextsteps','modal-elab-risks'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     document.getElementById('modal-resynth-msg').textContent='';
     document.getElementById('edit-modal').style.display='';
     setTimeout(()=>document.getElementById('modal-proj')?.focus(),50);
@@ -1256,6 +1266,8 @@ function openModal(rowIdx){
   document.getElementById('modal-status').value=(e.status!==undefined?e.status:normalizeStatus(row[C.STATUS]))||'';
   document.getElementById('modal-task').value=(e.task!==undefined?e.task:row[C.TASK])||'';
   document.getElementById('modal-notes').value=e.notes||'';
+  document.getElementById('modal-files').value=e.files||'';
+  document.getElementById('modal-unrelated').value=e.unrelated||'';
   const et=typeof e.elab==='string'?e.elab:typeof S.elab[rowIdx]==='string'?S.elab[rowIdx]:'';
   const p=parseElabSections(et);
   document.getElementById('modal-elab-status').value=p.status;
@@ -1289,6 +1301,8 @@ async function resynthModal(){
   const _rNotes=document.getElementById('modal-notes').value.trim();
   if(_rNotes!==(S.edits[i].notes||'')){S.edits[i].notesTs=_rNotes?Date.now():null;}
   S.edits[i].notes=_rNotes;
+  S.edits[i].files=document.getElementById('modal-files').value.trim();
+  S.edits[i].unrelated=document.getElementById('modal-unrelated').value.trim();
   try{
     const[emails,events]=await Promise.all([fetchEmails(),fetchCalendar()]);
     const projName=String(S.rr[i]?.[C.PROJ]||'').trim();
@@ -1334,6 +1348,8 @@ function saveModal(){
     const ni=S.rr.length-1;S.edits[ni]={};
     const _n=document.getElementById('modal-notes').value.trim();
     if(_n){S.edits[ni].notes=_n;S.edits[ni].notesTs=Date.now();}
+    const _f=document.getElementById('modal-files').value.trim();if(_f)S.edits[ni].files=_f;
+    const _u=document.getElementById('modal-unrelated').value.trim();if(_u)S.edits[ni].unrelated=_u;
     const s=document.getElementById('modal-elab-status').value.trim();
     const ns=document.getElementById('modal-elab-nextsteps').value.trim();
     const r=document.getElementById('modal-elab-risks').value.trim();
@@ -1352,6 +1368,8 @@ function saveModal(){
   const _sNotes=document.getElementById('modal-notes').value.trim();
   if(_sNotes!==(S.edits[i].notes||'')){S.edits[i].notesTs=_sNotes?Date.now():null;}
   S.edits[i].notes=_sNotes;
+  S.edits[i].files=document.getElementById('modal-files').value.trim();
+  S.edits[i].unrelated=document.getElementById('modal-unrelated').value.trim();
   const s=document.getElementById('modal-elab-status').value.trim();
   const ns=document.getElementById('modal-elab-nextsteps').value.trim();
   const r=document.getElementById('modal-elab-risks').value.trim();
