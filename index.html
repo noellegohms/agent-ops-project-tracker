@@ -264,8 +264,9 @@ td{padding:9px 12px;vertical-align:top;}
 </div>
 
 <!-- RR edit modal -->
-<div class="modal-overlay" id="edit-modal" style="display:none;" onclick="if(event.target===this)closeModal()">
+<div class="modal-overlay" id="edit-modal" style="display:none;">
   <div class="modal">
+    <button onclick="closeModal()" title="Close" aria-label="Close" style="position:sticky;top:0;float:right;margin:-20px -22px 0 0;border:none;background:var(--surface);font-size:22px;line-height:1;color:var(--text-muted);cursor:pointer;padding:2px 8px;z-index:2;border-radius:6px;">&times;</button>
     <h3 id="modal-title">Edit Row</h3>
     <div class="modal-sub" id="modal-sub"></div>
     <div class="modal-section-hdr">Project Info</div>
