@@ -199,7 +199,7 @@ td{padding:9px 12px;vertical-align:top;}
       <div class="sync-row"><div class="sync-dot" id="sync-dot"></div><span class="sync-ts" id="sync-ts">Never synced</span></div>
       <button class="btn btn-secondary btn-sm" onclick="doSync(true)">Sync now</button>
       <button class="btn btn-ghost btn-sm" onclick="saveToDrive(false)" title="Save to Google Drive now">☁ Save</button>
-      <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive">☁ —</span>
+      <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive" onclick="if(_driveState==='failed'||_driveState==='noauth')saveToDrive(false)">☁ —</span>
       <button class="btn btn-ghost btn-sm" onclick="restoreFromDrive()" title="Restore from Google Drive">↩ Restore</button>
       <button class="btn btn-ghost btn-sm" id="todoist-btn" onclick="syncToTodoist()" title="Sync tasks to Todoist">☑ Todoist</button>
       <button class="btn btn-ghost btn-sm" onclick="openSetup()" title="Settings">⚙</button>
@@ -459,7 +459,11 @@ function restoreLocalBackup(){
 }
 function debouncedDriveSave(){
   clearTimeout(_driveSaveTimer);
-  _driveSaveTimer=setTimeout(()=>{if(tokenValid()||S.refreshToken)saveToDrive(true);},3000);
+  _changeSeq++;setDriveState('pending');
+  _driveSaveTimer=setTimeout(()=>{
+    if(tokenValid()||S.refreshToken)saveToDrive(true);
+    else{setDriveState('noauth');addLog('⚠ Not signed in to Google — latest changes are NOT backed up to Drive','warn');document.getElementById('log-panel').style.display='';}
+  },3000);
 }
 function lsSave(){
   try{
@@ -922,7 +926,7 @@ async function doSync(manual){
 let _savingToDrive=false,_saveDrivePending=null;
 async function saveToDrive(silent){
   if(_savingToDrive){_saveDrivePending=silent;return;}
-  _savingToDrive=true;
+  _savingToDrive=true;setDriveState('saving');const _seqAtStart=_changeSeq;
   try{
     const tok=await ensureToken();
     const payload=localStorage.getItem(LS_KEY)||'{}';
@@ -958,14 +962,14 @@ async function saveToDrive(silent){
     }
     const d=await r.json();
     if(d.id){S.driveFileId=d.id;try{const _ls=JSON.parse(localStorage.getItem(LS_KEY)||'{}');_ls.driveFileId=d.id;localStorage.setItem(LS_KEY,JSON.stringify(_ls));}catch(_){}}
-    else{addLog('Drive save failed: '+JSON.stringify(d?.error?.message||d),'err');document.getElementById('log-panel').style.display='';return;}
-    if(!silent)addLog('Saved to Drive ✓ ('+new Date().toLocaleTimeString('en-SG')+')','ok');
-    updateDriveStatus(true);
+    else{const em=JSON.stringify(d?.error?.message||d);addLog('Drive save failed: '+em,'err');document.getElementById('log-panel').style.display='';setDriveState('failed','Drive save failed: '+em);return;}
+    addLog('Saved to Drive ✓ ('+new Date().toLocaleTimeString('en-SG')+')','ok');
+    if(_changeSeq!==_seqAtStart)setDriveState('pending');else setDriveState('saved');
   }catch(e){
     addLog('Drive save failed: '+e.message,'err');
     document.getElementById('log-panel').style.display='';
     dbg('saveToDrive: '+e.message,'err');
-    updateDriveStatus(false);
+    setDriveState('failed','Drive save failed: '+e.message);
   }finally{
     _savingToDrive=false;
     if(_saveDrivePending!==null){const p=_saveDrivePending;_saveDrivePending=null;saveToDrive(p);}
@@ -995,7 +999,30 @@ async function restoreFromDrive(){
   }catch(e){alert('Restore failed: '+e.message);}
 }
 
+let _changeSeq=0,_driveState='saved';
+function setDriveState(state,detail){
+  _driveState=state;
+  const el=document.getElementById('drive-status');if(!el)return;
+  const t=new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const M={
+    pending:['☁ Unsaved changes…','#b26a00','Changes are saved on this device only; uploading to Drive shortly. Do not refresh yet.'],
+    saving:['☁ Saving to Drive…','#b26a00','Uploading to Google Drive'],
+    saved:['☁ Saved to Drive '+t,'#3aa876','Last successful Drive upload: '+t],
+    failed:['☁ Drive save FAILED — click to retry','#c62828',detail||'Drive upload failed. Changes exist only on this device.'],
+    noauth:['☁ Not signed in — NOT backed up','#c62828','Sign in again (⚙) — changes exist only on this device.'],
+  }[state]||['☁ —','var(--text-muted)',''];
+  el.textContent=M[0];el.style.color=M[1];el.title=M[2];el.style.cursor=(state==='failed'||state==='noauth')?'pointer':'default';
+  el.style.fontWeight=(state==='failed'||state==='noauth')?'600':'400';
+}
+window.addEventListener('beforeunload',e=>{
+  if(_driveState==='saved')return;
+  e.preventDefault();e.returnValue='Your latest changes are not saved to Drive yet.';return e.returnValue;
+});
 function updateDriveStatus(ok){
+  if(ok){setDriveState('saved');return;}
+  setDriveState('failed');
+}
+function _oldUpdateDriveStatus(ok){
   const el=document.getElementById('drive-status');
   if(!el)return;
   el.textContent=ok?'☁ Saved':'☁ —';
@@ -1752,6 +1779,7 @@ function enterApp(){
         saveTokenOnly();
         renderAll();
         addLog('Loaded from Drive ✓','ok');
+        setDriveState('saved');
       }else{
         addLog('No Drive backup file found','info');
       }
