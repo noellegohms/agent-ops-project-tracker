@@ -1277,7 +1277,7 @@ function openModal(rowIdx){
   const isNew=rowIdx===-1;
   const pf=document.getElementById('modal-proj-field');
   const rb=document.getElementById('modal-resynth-btn');
-  if(pf)pf.style.display=isNew?'':'none';
+  if(pf)pf.style.display='';
   if(rb)rb.disabled=isNew;
   if(isNew){
     document.getElementById('modal-title').textContent='New Project';
@@ -1293,6 +1293,7 @@ function openModal(rowIdx){
   const effType=e.type!==undefined?e.type:row[C.TYPE]||'';
   const effCat=e.cat!==undefined?e.cat:row[C.CAT]||'';
   document.getElementById('modal-title').textContent=normProjName(row[C.PROJ]||'')||'Edit Row';
+  document.getElementById('modal-proj').value=String(row[C.PROJ]||'').trim();
   document.getElementById('modal-sub').textContent=[effType,effCat].filter(Boolean).join(' · ');
   document.getElementById('modal-type').value=effType;
   document.getElementById('modal-cat').value=effCat;
@@ -1329,6 +1330,18 @@ function buildElabFromFields(){
   const ns=document.getElementById('modal-elab-nextsteps').value.trim();
   const r=document.getElementById('modal-elab-risks').value.trim();
   return('**Status**\n'+(s?toBullets(s):'- None')+'\n\n**Next Steps**\n'+(ns?toBullets(ns):'- None')+'\n\n**Risks**\n'+(r?toBullets(r):'- None')).trim();
+}
+// Rename a tracker project and carry its Sheet mapping + judgements across, so the
+// rename doesn't break the link to its source-sheet row (matching is by name).
+function renameProject(i,oldName,newName){
+  const src=S.directMatches[i];
+  Object.keys(S.mapJudgements).forEach(k=>{
+    if(k.startsWith(oldName+'|')){S.mapJudgements[newName+k.slice(oldName.length)]=S.mapJudgements[k];delete S.mapJudgements[k];}
+  });
+  if(src&&src.projName&&!S.mapJudgements[newName+'|'+src.projName])S.mapJudgements[newName+'|'+src.projName]='confirm';
+  if(S.extraMappings[oldName]){S.extraMappings[newName]=S.extraMappings[oldName];delete S.extraMappings[oldName];}
+  S.rr[i][C.PROJ]=newName;
+  addLog('Renamed project "'+oldName+'" → "'+newName+'"','info');
 }
 async function resynthModal(){
   const i=S.editRow;if(i==null||i===-1)return;
@@ -1394,6 +1407,16 @@ function saveModal(){
     if(s||ns||r)S.edits[ni].elab=buildElabFromFields();
     lsSave();closeModal();buildFilters();renderRR();
     return;
+  }
+  {
+    const oldName=String(S.rr[i]?.[C.PROJ]||'').trim();
+    const newName=(document.getElementById('modal-proj')?.value||'').trim();
+    if(!newName){alert('Project name cannot be empty.');return;}
+    if(newName!==oldName){
+      const clash=S.rr.findIndex((r,j)=>j!==i&&String(r[C.PROJ]||'').trim().toLowerCase()===newName.toLowerCase());
+      if(clash!==-1){alert('Another project is already named "'+newName+'".');return;}
+      renameProject(i,oldName,newName);
+    }
   }
   if(!S.edits[i])S.edits[i]={};
   S.edits[i].type=document.getElementById('modal-type').value;
@@ -1676,6 +1699,11 @@ async function syncToTodoist(){
               // Tracker edited (or both — tracker wins) → push to Todoist
               await tdFetch('/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+trackerText})});
               e.todoistLines[li]={id:stored.id,text:trackerText};updated++;stateChanged=true;
+            }
+            else if(td.content.indexOf('['+projName+'] ')!==0){
+              // Project was renamed — refresh the [Project] prefix in Todoist
+              await tdFetch('/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+trackerText})});
+              updated++;
             }
             // Completion: tracker checked → close in Todoist
             if(isChecked){
