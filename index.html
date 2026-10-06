@@ -1683,6 +1683,19 @@ function openSetup(){
   document.getElementById('setup-overlay').style.display='';
   if(!unlocked)setTimeout(()=>document.getElementById('inp-pw')?.focus(),50);
 }
+// "[8 Oct]" style date tokens in Noelle's Task lines become the Todoist deadline and are kept out of the Todoist task text.
+const TD_DATE_RE=/\s*\[(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\]/gi;
+function tdClean(t){return String(t||'').replace(TD_DATE_RE,' ').replace(/\s{2,}/g,' ').trim();}
+function tdDateSuffix(t){return (String(t||'').match(TD_DATE_RE)||[]).map(x=>' '+x.trim()).join('');}
+function tdParseDue(t){
+  const m=new RegExp(TD_DATE_RE.source,'i').exec(String(t||''));if(!m)return null;
+  const mon=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[2].toLowerCase());
+  const day=parseInt(m[1],10);const now=new Date();let y=now.getFullYear();
+  let d=new Date(y,mon,day);
+  if(d.getMonth()!==mon)return null; // invalid date such as 31 Feb
+  if(d<new Date(now.getFullYear(),now.getMonth(),now.getDate()-180))d=new Date(++y,mon,day); // far in the past → next year
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 async function syncToTodoist(){
   const btn=document.getElementById('todoist-btn');
   const origLabel=btn?btn.textContent:'';
@@ -1747,17 +1760,25 @@ async function syncToTodoist(){
             // Still active in Todoist — sync text
             const tdText=stripPrefix(td.content);
             const trackerText=currentLines[li];
-            if(tdText!==stored.text&&trackerText===stored.text){
-              // Todoist edited → pull to tracker
-              currentLines[li]=tdText;e.todoistLines[li]={id:stored.id,text:tdText};tdPulled++;stateChanged=true;
+            const tdBody=(extra)=>JSON.stringify(Object.assign({content:'['+projName+'] '+tdClean(trackerText)},extra||{}));
+            const dueIso=tdParseDue(trackerText);
+            if(tdClean(tdText)!==tdClean(stored.text)&&trackerText===stored.text){
+              // Todoist edited → pull to tracker (keep the tracker's [dd mmm] token)
+              const pulled=tdClean(tdText)+tdDateSuffix(stored.text);
+              currentLines[li]=pulled;e.todoistLines[li]={id:stored.id,text:pulled};tdPulled++;stateChanged=true;
             } else if(trackerText!==stored.text){
-              // Tracker edited (or both — tracker wins) → push to Todoist
-              await tdFetch('/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+trackerText})});
+              // Tracker edited (or both — tracker wins) → push to Todoist, deadline from [dd mmm]
+              await tdFetch('/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:tdBody(dueIso?{due_date:dueIso}:{})});
               e.todoistLines[li]={id:stored.id,text:trackerText};updated++;stateChanged=true;
             }
             else if(td.content.indexOf('['+projName+'] ')!==0){
               // Project was renamed — refresh the [Project] prefix in Todoist
-              await tdFetch('/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+trackerText})});
+              await tdFetch('/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:tdBody()});
+              updated++;
+            }
+            else if(dueIso&&(!td.due||new RegExp(TD_DATE_RE.source,'i').test(td.content))){
+              // Older task: has a [dd mmm] in the tracker but no deadline / still has the date in its text → fix once
+              await tdFetch('/tasks/'+stored.id,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:tdBody({due_date:dueIso})});
               updated++;
             }
             // Completion: tracker checked → close in Todoist
@@ -1780,7 +1801,7 @@ async function syncToTodoist(){
           }
         } else if(!isChecked){
           // No stored ID and not done → create in Todoist
-          const res=await tdFetch('/tasks',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({content:'['+projName+'] '+currentLines[li],project_id:workProj.id,priority})});
+          const res=await tdFetch('/tasks',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(Object.assign({content:'['+projName+'] '+tdClean(currentLines[li]),project_id:workProj.id,priority},tdParseDue(currentLines[li])?{due_date:tdParseDue(currentLines[li])}:{}))});
           if(res.ok){const nt=await res.json();e.todoistLines[li]={id:nt.id,text:currentLines[li]};created++;stateChanged=true;}else{addLog('Todoist: task create failed (HTTP '+res.status+') for: '+currentLines[li].slice(0,40),'err');}
         }
       }
