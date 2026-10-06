@@ -793,7 +793,7 @@ async function synthesizeElab(row,emails,events,colL,colW,edits){
     const taskText=String((edits?.task!==undefined?edits.task:row[C.TASK])||'').trim();
     const checkedIdxs=edits?.checkedTasks||[];
     if(taskText){
-      const taskLines=taskText.split('\n').map((l,li)=>({text:l.trim().replace(/^[-•]\s*/,''),li})).filter(t=>t.text);
+      const taskLines=taskText.split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean).map((text,li)=>({text,li}));
       const done=taskLines.filter(t=>checkedIdxs.includes(t.li)).map(t=>t.text);
       const pending=taskLines.filter(t=>!checkedIdxs.includes(t.li)).map(t=>t.text);
       if(done.length)ctx+='\n\nNoelle\'s completed tasks (reflect in Status):\n'+done.map(t=>'- '+t).join('\n');
@@ -1132,6 +1132,12 @@ function renderTaskHtml(text,rowIdx){
 }
 
 function effectivePic(i){const e=S.edits[i]||{};return e.pic!==undefined?e.pic:String(S.rr[i]?.[C.PIC]||'');}
+// Unchecked Noelle's Task lines (same line numbering as the checkboxes in the table)
+function pendingTaskCount(i){
+  const lines=String(effectiveTask(i)||'').split('\n').map(l=>l.trim().replace(/^[-•]\s*/,'')).filter(Boolean);
+  const checked=new Set((S.edits[i]||{}).checkedTasks||[]);
+  return lines.filter((_,li)=>!checked.has(li)).length;
+}
 function effectiveTask(i){const e=S.edits[i]||{};return e.task!==undefined?e.task:String(S.rr[i]?.[C.TASK]||'');}
 
 function toggleBoolFilter(key,el){
@@ -1185,7 +1191,7 @@ function renderRR(){
       const effPri=S.edits[i]?.pri!==undefined?S.edits[i].pri:row[C.PRI];
       if(S.activeF.pri.size&&!S.activeF.pri.has(effPri))return false;
       if(S.activeF.pic.size&&!S.activeF.pic.has(pic))return false;
-      if(S.filterTask&&!task.trim())return false;
+      if(S.filterTask&&pendingTaskCount(i)===0)return false;
       if(q&&![row[C.PROJ],row[C.CAT],row[C.TYPE],pic].join(' ').toLowerCase().includes(q))return false;
       return true;
     });
