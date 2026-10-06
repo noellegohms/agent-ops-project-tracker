@@ -448,7 +448,7 @@ var _staleResolve=null;
 function staleRemoveAll(){if(_staleResolve)_staleResolve('remove-all');}
 function staleHandleIndividually(){if(_staleResolve)_staleResolve('handle-individually');}
 
-let _driveSaveTimer=null;
+let _driveSaveTimer=null,_openCheckDone=false;
 function restoreLocalBackup(){
   const b=localStorage.getItem(LS_KEY+'-prevlocal');
   if(!b){console.log('No local backup found');return;}
@@ -461,7 +461,9 @@ function restoreLocalBackup(){
 function debouncedDriveSave(){
   clearTimeout(_driveSaveTimer);
   _changeSeq++;setDriveState('pending');
-  _driveSaveTimer=setTimeout(()=>{
+  _driveSaveTimer=setTimeout(function go(n){
+    // Never upload before the open-time Drive check has finished — otherwise stale local data could overwrite Drive.
+    if(!_openCheckDone&&(n||0)<20){_driveSaveTimer=setTimeout(()=>go((n||0)+1),1000);return;}
     if(tokenValid()||S.refreshToken)saveToDrive(true);
     else{setDriveState('noauth');addLog('⚠ Not signed in to Google — latest changes are NOT backed up to Drive','warn');document.getElementById('log-panel').style.display='';}
   },3000);
@@ -1821,8 +1823,8 @@ function enterApp(){
       if(tokenValid()){tok=S.token;}
       else if(S.refreshToken){
         try{const t=await doRefreshToken();S.token=t.access_token;S.tokenExp=Date.now()+t.expires_in*1000;saveTokenOnly();tok=S.token;}
-        catch(e){addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
-      }else{addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);return;}
+        catch(e){addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);_openCheckDone=true;return;}
+      }else{addLog('Drive sync skipped — please re-authenticate','warn');document.getElementById('log-panel').style.display='';if(!S.lastSync)doSync(false);_openCheckDone=true;return;}
       const q=encodeURIComponent('name="'+DRIVE_FILE_NAME+'"');
       const _driveQ='https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,modifiedTime)';
       const res=await Promise.race([fetch(_driveQ,{headers:{Authorization:'Bearer '+tok}}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('Drive check timed out after 8s')),8000))]);
@@ -1857,7 +1859,7 @@ function enterApp(){
         addLog('No Drive backup file found','info');
       }
     }catch(e){dbg('auto-restore: '+e.message,'err');addLog('Drive check failed: '+e.message,'err');document.getElementById('log-panel').style.display='';}
-    clearTimeout(_safetyTimer);
+    _openCheckDone=true;clearTimeout(_safetyTimer);
     if(!S.lastSync)doSync(false);
   })();
 }
