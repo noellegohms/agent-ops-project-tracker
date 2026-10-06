@@ -199,7 +199,7 @@ td{padding:9px 12px;vertical-align:top;}
       <div class="sync-row"><div class="sync-dot" id="sync-dot"></div><span class="sync-ts" id="sync-ts">Never synced</span></div>
       <button class="btn btn-secondary btn-sm" onclick="doSync(true)">Sync now</button>
       <button class="btn btn-ghost btn-sm" onclick="saveToDrive(false)" title="Save to Google Drive now">☁ Save</button>
-      <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive" onclick="if(_driveState==='failed'||_driveState==='noauth')saveToDrive(false)">☁ —</span>
+      <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive" onclick="if(['failed','noauth','mismatch'].includes(_driveState))saveToDrive(false)">☁ —</span>
       <button class="btn btn-ghost btn-sm" onclick="restoreFromDrive()" title="Restore from Google Drive">↩ Restore</button>
       <button class="btn btn-ghost btn-sm" id="todoist-btn" onclick="syncToTodoist()" title="Sync tasks to Todoist">☑ Todoist</button>
       <button class="btn btn-ghost btn-sm" onclick="openSetup()" title="Settings">⚙</button>
@@ -466,7 +466,20 @@ function debouncedDriveSave(){
     else{setDriveState('noauth');addLog('⚠ Not signed in to Google — latest changes are NOT backed up to Drive','warn');document.getElementById('log-panel').style.display='';}
   },3000);
 }
+let _staleTab=false;
+window.addEventListener('storage',e=>{
+  if(e.key!==LS_KEY||!e.newValue)return;
+  try{
+    const nv=JSON.parse(e.newValue);
+    if((nv.lastSaved||0)>(S.lastSaved||0)){
+      _staleTab=true;setDriveState('conflict');
+      addLog('⚠ Another tab saved newer data. This tab is out of date — refresh it. Changes made here are NOT being saved.','err');
+      const lp=document.getElementById('log-panel');if(lp)lp.style.display='';
+    }
+  }catch(_){}
+});
 function lsSave(){
+  if(_staleTab){setDriveState('conflict');return;}
   try{
     S.lastSaved=Date.now();
     localStorage.setItem(LS_KEY,JSON.stringify({
@@ -962,7 +975,18 @@ async function saveToDrive(silent){
     if(d.id){S.driveFileId=d.id;try{const _ls=JSON.parse(localStorage.getItem(LS_KEY)||'{}');_ls.driveFileId=d.id;localStorage.setItem(LS_KEY,JSON.stringify(_ls));}catch(_){}}
     else{const em=JSON.stringify(d?.error?.message||d);addLog('Drive save failed: '+em,'err');document.getElementById('log-panel').style.display='';setDriveState('failed','Drive save failed: '+em);return;}
     addLog('Saved to Drive ✓ ('+new Date().toLocaleTimeString('en-SG')+')','ok');
-    if(_changeSeq!==_seqAtStart)setDriveState('pending');else setDriveState('saved');
+    let _verified=null;
+    try{
+      const vr=await fetch('https://www.googleapis.com/drive/v3/files/'+S.driveFileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
+      const vt=await vr.text();
+      _verified=(vt===payload);
+      if(!_verified)addLog('⚠ Drive read-back MISMATCH: uploaded '+payload.length+' chars, Drive has '+vt.length+' chars','err');
+      else addLog('✓ Verified: Drive copy matches this device ('+payload.length+' chars)','ok');
+    }catch(ve){addLog('Could not verify Drive copy: '+ve.message,'warn');}
+    if(_verified===false){document.getElementById('log-panel').style.display='';setDriveState('mismatch','After uploading, Drive holds different data than this device. Click to retry.');}
+    else if(_changeSeq!==_seqAtStart)setDriveState('pending');
+    else if(_verified===true)setDriveState('saved');
+    else setDriveState('unverified');
   }catch(e){
     addLog('Drive save failed: '+e.message,'err');
     document.getElementById('log-panel').style.display='';
@@ -1005,15 +1029,19 @@ function setDriveState(state,detail){
   const M={
     pending:['☁ Unsaved changes…','#b26a00','Changes are saved on this device only; uploading to Drive shortly. Do not refresh yet.'],
     saving:['☁ Saving to Drive…','#b26a00','Uploading to Google Drive'],
-    saved:['☁ Saved to Drive '+t,'#3aa876','Last successful Drive upload: '+t],
+    saved:['☁ ✓ Verified in Drive '+t,'#3aa876','Uploaded and read back from Drive — the Drive copy matches this device ('+t+')'],
+    unverified:['☁ Uploaded, not verified '+t,'#b26a00',detail||'Upload reported success but the read-back check could not run.'],
+    mismatch:['☁ DRIVE COPY DOES NOT MATCH — click to retry','#c62828',detail||'After uploading, the Drive copy differs from this device.'],
+    conflict:['☁ ⚠ Another tab changed data — refresh this tab','#c62828','Another tab of the tracker saved newer data. Changes in this tab are NOT being saved so they cannot overwrite it. Copy anything you need, then refresh.'],
     failed:['☁ Drive save FAILED — click to retry','#c62828',detail||'Drive upload failed. Changes exist only on this device.'],
     noauth:['☁ Not signed in — NOT backed up','#c62828','Sign in again (⚙) — changes exist only on this device.'],
   }[state]||['☁ —','var(--text-muted)',''];
-  el.textContent=M[0];el.style.color=M[1];el.title=M[2];el.style.cursor=(state==='failed'||state==='noauth')?'pointer':'default';
-  el.style.fontWeight=(state==='failed'||state==='noauth')?'600':'400';
+  el.textContent=M[0];el.style.color=M[1];el.title=M[2];const bad=['failed','noauth','mismatch','conflict'].includes(state);
+  el.style.cursor=(state==='failed'||state==='noauth'||state==='mismatch')?'pointer':'default';
+  el.style.fontWeight=bad?'600':'400';
 }
 window.addEventListener('beforeunload',e=>{
-  if(_driveState==='saved')return;
+  if(_driveState==='saved'||_driveState==='unverified')return;
   e.preventDefault();e.returnValue='Your latest changes are not saved to Drive yet.';return e.returnValue;
 });
 function updateDriveStatus(ok){
