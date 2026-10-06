@@ -199,7 +199,7 @@ td{padding:9px 12px;vertical-align:top;}
       <div class="sync-row"><div class="sync-dot" id="sync-dot"></div><span class="sync-ts" id="sync-ts">Never synced</span></div>
       <button class="btn btn-secondary btn-sm" onclick="doSync(true)">Sync now</button>
       <button class="btn btn-ghost btn-sm" onclick="saveToDrive(false)" title="Save to Google Drive now">☁ Save</button>
-      <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive" onclick="if(['failed','noauth','mismatch'].includes(_driveState))saveToDrive(false)">☁ —</span>
+      <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive" onclick="if(_driveState==='conflict')keepThisTab();else if(['failed','noauth','mismatch'].includes(_driveState))saveToDrive(false)">☁ —</span>
       <button class="btn btn-ghost btn-sm" onclick="restoreFromDrive()" title="Restore from Google Drive">↩ Restore</button>
       <button class="btn btn-ghost btn-sm" id="todoist-btn" onclick="syncToTodoist()" title="Sync tasks to Todoist">☑ Todoist</button>
       <button class="btn btn-ghost btn-sm" onclick="openSetup()" title="Settings">⚙</button>
@@ -466,6 +466,18 @@ function debouncedDriveSave(){
     else{setDriveState('noauth');addLog('⚠ Not signed in to Google — latest changes are NOT backed up to Drive','warn');document.getElementById('log-panel').style.display='';}
   },3000);
 }
+function keepThisTab(){
+  if(!confirm('Keep THIS tab\'s data?\n\nIt will replace the other tab\'s data and the Drive copy. (Drive keeps earlier versions for a while.)\n\nOK = keep this tab.\nCancel = decide later (your edits stay backed up).'))return;
+  _staleTab=false;lsSave();addLog('Kept this tab\'s data; uploading to Drive.','info');
+}
+function restoreConflictBackup(){
+  const b=localStorage.getItem(LS_KEY+'-conflict');
+  if(!b){console.log('No conflict backup found');return;}
+  const live={token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken};
+  localStorage.setItem(LS_KEY,b);lsLoad();
+  S.token=live.token;S.tokenExp=live.tokenExp;S.refreshToken=live.refreshToken;
+  _staleTab=false;renderAll();lsSave();console.log('Conflict backup restored and saving to Drive');
+}
 let _staleTab=false;
 window.addEventListener('storage',e=>{
   if(e.key!==LS_KEY||!e.newValue)return;
@@ -473,16 +485,16 @@ window.addEventListener('storage',e=>{
     const nv=JSON.parse(e.newValue);
     if((nv.lastSaved||0)>(S.lastSaved||0)){
       _staleTab=true;setDriveState('conflict');
-      addLog('⚠ Another tab saved newer data. This tab is out of date — refresh it. Changes made here are NOT being saved.','err');
+      try{localStorage.setItem(LS_KEY+'-conflict',JSON.stringify({rr:S.rr,edits:S.edits,elab:S.elab,auto:S.auto,scope:S.scope,autoLocal:S.autoLocal,autoEdits:S.autoEdits,scopeEdits:S.scopeEdits,sourceRows:S.sourceRows,directMatches:S.directMatches,mapJudgements:S.mapJudgements,extraMappings:S.extraMappings,picSynth:S.picSynth,lastSaved:S.lastSaved}));}catch(_){}
+      addLog('⚠ Another tab saved different data. Your edits in THIS tab are backed up and nothing is lost. Click the red status at the top to keep THIS tab\'s data (overwrites Drive), or refresh to take the other tab\'s data.','err');
       const lp=document.getElementById('log-panel');if(lp)lp.style.display='';
     }
   }catch(_){}
 });
 function lsSave(){
-  if(_staleTab){setDriveState('conflict');return;}
   try{
     S.lastSaved=Date.now();
-    localStorage.setItem(LS_KEY,JSON.stringify({
+    const _obj=({
       clientId:S.clientId,clientSecret:S.clientSecret,claudeKey:S.claudeKey,
       token:S.token,tokenExp:S.tokenExp,refreshToken:S.refreshToken,
       rr:S.rr,auto:S.auto,scope:S.scope,autoLocal:S.autoLocal,
@@ -491,7 +503,14 @@ function lsSave(){
       sourceRows:S.sourceRows,directMatches:S.directMatches,uncertainMatches:S.uncertainMatches,
       unmappedSource:S.unmappedSource,mapJudgements:S.mapJudgements,extraMappings:S.extraMappings,picSynth:S.picSynth,
       lastSaved:S.lastSaved,
-    }));
+    });
+    if(_staleTab){
+      // Another tab owns shared storage right now: keep THIS tab's edits safe in a separate key, never discard them.
+      localStorage.setItem(LS_KEY+'-conflict',JSON.stringify(_obj));
+      setDriveState('conflict');
+      return;
+    }
+    localStorage.setItem(LS_KEY,JSON.stringify(_obj));
     debouncedDriveSave();
   }catch(e){dbg('lsSave: '+e.message,'err');}
 }
@@ -1032,12 +1051,12 @@ function setDriveState(state,detail){
     saved:['☁ ✓ Verified in Drive '+t,'#3aa876','Uploaded and read back from Drive — the Drive copy matches this device ('+t+')'],
     unverified:['☁ Uploaded, not verified '+t,'#b26a00',detail||'Upload reported success but the read-back check could not run.'],
     mismatch:['☁ DRIVE COPY DOES NOT MATCH — click to retry','#c62828',detail||'After uploading, the Drive copy differs from this device.'],
-    conflict:['☁ ⚠ Another tab changed data — refresh this tab','#c62828','Another tab of the tracker saved newer data. Changes in this tab are NOT being saved so they cannot overwrite it. Copy anything you need, then refresh.'],
+    conflict:['☁ ⚠ Conflict with another tab — click to choose','#c62828','Another tab saved different data. Your edits in this tab are safely backed up. Click to keep THIS tab\'s data (it will overwrite Drive), or refresh to take the other tab\'s.'],
     failed:['☁ Drive save FAILED — click to retry','#c62828',detail||'Drive upload failed. Changes exist only on this device.'],
     noauth:['☁ Not signed in — NOT backed up','#c62828','Sign in again (⚙) — changes exist only on this device.'],
   }[state]||['☁ —','var(--text-muted)',''];
   el.textContent=M[0];el.style.color=M[1];el.title=M[2];const bad=['failed','noauth','mismatch','conflict'].includes(state);
-  el.style.cursor=(state==='failed'||state==='noauth'||state==='mismatch')?'pointer':'default';
+  el.style.cursor=(state==='failed'||state==='noauth'||state==='mismatch'||state==='conflict')?'pointer':'default';
   el.style.fontWeight=bad?'600':'400';
 }
 window.addEventListener('beforeunload',e=>{
