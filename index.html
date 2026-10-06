@@ -1782,21 +1782,6 @@ function enterApp(){
       const data=await res.json();
       if(data.files&&data.files.length){
         const fileId=data.files[0].id;
-        // ONE-TIME override: opening the tracker with ?pushlocal=1 uploads THIS device's data to Drive
-        // instead of downloading Drive's copy. The flag is stripped from the URL straight away, so it only runs once.
-        if(new URLSearchParams(location.search).get('pushlocal')==='1'){
-          history.replaceState(null,'',location.pathname+location.hash);
-          const _ls=S.lastSaved?new Date(S.lastSaved).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'unknown';
-          const _dm=data.files[0].modifiedTime?new Date(data.files[0].modifiedTime).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'unknown';
-          if(confirm('One-time push: replace the Drive copy with THIS device\'s data?\n\nThis device last edited: '+_ls+'\nDrive last updated: '+_dm+'\n\nOK = upload this device to Drive.\nCancel = normal behaviour (load Drive\'s copy).')){
-            S.driveFileId=fileId;
-            addLog('One-time push: uploading this device\'s data to Drive…','info');
-            document.getElementById('log-panel').style.display='';
-            await saveToDrive(false);
-            clearTimeout(_safetyTimer);
-            return;
-          }
-        }
         const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{Authorization:'Bearer '+tok}});
         const driveText=await r.text();
         // Drive is always the source of truth on open — always load it, never auto-push.
