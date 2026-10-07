@@ -199,6 +199,7 @@ td{padding:9px 12px;vertical-align:top;}
       <div class="sync-row"><div class="sync-dot" id="sync-dot"></div><span class="sync-ts" id="sync-ts">Never synced</span></div>
       <button class="btn btn-secondary btn-sm" onclick="doSync(true)">Sync now</button>
       <button class="btn btn-ghost btn-sm" onclick="saveToDrive(false)" title="Save to Google Drive now">☁ Save</button>
+      <button class="btn btn-ghost btn-sm" onclick="downloadBackup()" title="Download a backup file of all tracker data (no passwords or API keys included)">⬇ Backup</button>
       <span id="drive-status" style="font-size:11px;color:var(--text-muted);cursor:default;" title="Not yet saved to Drive" onclick="if(_driveState==='conflict')keepThisTab();else if(['failed','noauth','mismatch'].includes(_driveState))saveToDrive(false)">☁ —</span>
       <button class="btn btn-ghost btn-sm" onclick="restoreFromDrive()" title="Restore from Google Drive">↩ Restore</button>
       <button class="btn btn-ghost btn-sm" id="todoist-btn" onclick="syncToTodoist()" title="Sync tasks to Todoist">☑ Todoist</button>
@@ -449,6 +450,21 @@ function staleRemoveAll(){if(_staleResolve)_staleResolve('remove-all');}
 function staleHandleIndividually(){if(_staleResolve)_staleResolve('handle-individually');}
 
 let _driveSaveTimer=null,_openCheckDone=false;
+// Download all tracker data as a .json file. Credentials (API keys, Google tokens) are left out on purpose.
+function downloadBackup(){
+  try{
+    const d=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    ['clientId','clientSecret','claudeKey','token','tokenExp','refreshToken','driveFileId'].forEach(k=>delete d[k]);
+    d._exportedAt=new Date().toISOString();
+    const n=new Date(),pad=x=>String(x).padStart(2,'0');
+    const name='tracker-backup-'+n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())+'-'+pad(n.getHours())+pad(n.getMinutes())+'.json';
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,1)],{type:'application/json'}));
+    a.download=name;document.body.appendChild(a);a.click();a.remove();
+    addLog('Downloaded backup file: '+name+' ('+(d.rr||[]).length+' projects)','ok');
+    document.getElementById('log-panel').style.display='';
+  }catch(e){addLog('Backup download failed: '+e.message,'err');alert('Backup download failed: '+e.message);}
+}
 function restoreLocalBackup(){
   const b=localStorage.getItem(LS_KEY+'-prevlocal');
   if(!b){console.log('No local backup found');return;}
